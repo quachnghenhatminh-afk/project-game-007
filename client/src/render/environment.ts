@@ -14,7 +14,7 @@ export interface Environment {
 
 export function buildNightEnvironment(scene: THREE.Scene, fpScene: THREE.Scene): Environment {
   scene.background = new THREE.Color(NIGHT_FOG_COLOR);
-  scene.fog = new THREE.FogExp2(NIGHT_FOG_COLOR, 0.012);
+  scene.fog = new THREE.FogExp2(NIGHT_FOG_COLOR, BASE_FOG_DENSITY);
 
   // --- Lights ---------------------------------------------------------------
   scene.add(new THREE.HemisphereLight(0x3b4f80, 0x0a0c12, 0.9));
@@ -83,17 +83,36 @@ export function buildNightEnvironment(scene: THREE.Scene, fpScene: THREE.Scene):
 
   // --- Drifting mist puffs (one point cloud per layer = one draw call each) ---
   const mists = [
-    makeMist(scene, 80, CITADEL.playAreaRadius - 2, 12, 2, 6, 20, 0.5), // dense ring at the fog wall
+    makeMist(scene, 90, CITADEL.fogStartRadius, 18, 1, 6, 20, 0.5), // dense band where the fog wall is
     makeMist(scene, 50, CITADEL.wallRadius + 6, 34, 0.8, 1.2, 12, 0.25), // light ground mist in the forest
   ];
+
+  // Walking into the fog band: distance fog thickens until vision is a few meters.
+  const fog = scene.fog as THREE.FogExp2;
+  const bg = scene.background as THREE.Color;
+  const clearColor = new THREE.Color(NIGHT_FOG_COLOR);
+  const thickColor = new THREE.Color(0x3a4660);
 
   return {
     update(dt, time, camera) {
       sky.position.copy(camera.position);
       for (const m of mists) m.update(dt, time);
       fogLayers.forEach((m, i) => (m.rotation.y = time * 0.01 * (i % 2 ? 1 : -1)));
+      const k = fogDepth(Math.hypot(camera.position.x, camera.position.z));
+      fog.density = BASE_FOG_DENSITY + k * k * (MAX_FOG_DENSITY - BASE_FOG_DENSITY);
+      fog.color.lerpColors(clearColor, thickColor, k);
+      bg.copy(fog.color);
     },
   };
+}
+
+const BASE_FOG_DENSITY = 0.012;
+const MAX_FOG_DENSITY = 0.11;
+
+/** 0 outside the fog band, rising to 1 at the edge of the play area. */
+export function fogDepth(radius: number): number {
+  const t = (radius - CITADEL.fogStartRadius) / (CITADEL.playAreaRadius - CITADEL.fogStartRadius);
+  return Math.min(1, Math.max(0, t));
 }
 
 function makeMist(

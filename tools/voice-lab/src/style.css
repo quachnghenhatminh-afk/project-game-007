@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --bg: #15171c;
   --panel: #1d2027;
   --card: #252932;
@@ -67,28 +67,20 @@ th { color: var(--muted); font-weight: 500; }
   background: rgba(0, 0, 0, 0.5); padding: 4px 14px; border-radius: 6px; font-size: 18px;
 }
 #hud-target:empty { display: none; }
-#hud-rec {
-  position: absolute; left: 50%; top: 58%; transform: translateX(-50%); pointer-events: none;
-  text-align: center; text-shadow: 0 0 4px #000;
-}
-#hud-rec .rec-label { color: #ff5b5b; font-weight: 700; font-size: 16px; }
-#hud-live { color: #fff; font-size: 30px; font-weight: 700; min-height: 1.3em; white-space: nowrap; }
-#hud-live:empty::before { content: '…'; opacity: 0.5; }
 
-/* Pronunciation feedback after release */
+/* Guided practice: syllable comparison (above the game subtitle) */
 #hud-heard {
-  position: absolute; left: 50%; bottom: 56px; transform: translateX(-50%); pointer-events: none;
-  background: rgba(0, 0, 0, 0.6); border-radius: 8px; padding: 8px 16px; text-align: center;
-  opacity: 0; transition: opacity 0.8s; white-space: nowrap;
+  position: absolute; left: 50%; bottom: 110px; transform: translateX(-50%); pointer-events: none;
+  background: rgba(0, 0, 0, 0.6); border-radius: 8px; padding: 6px 16px; text-align: center;
+  opacity: 0; transition: opacity 0.6s; white-space: nowrap;
 }
 #hud-heard.show { opacity: 1; transition: none; }
-#hud-heard .row { font-size: 15px; }
-#hud-heard .syl { display: inline-block; font-size: 26px; font-weight: 800; margin: 0 4px; text-transform: uppercase; }
+#hud-heard .row { font-size: 13px; }
+#hud-heard .syl { display: inline-block; font-size: 24px; font-weight: 800; margin: 0 4px; text-transform: uppercase; }
 .syl.ok { color: var(--good); }
 .syl.miss { color: var(--bad); text-decoration: underline wavy; }
-#hud-result {
-  position: absolute; left: 50%; top: 32%; transform: translateX(-50%); pointer-events: none;
-  font-size: 40px; font-weight: 800; text-shadow: 0 2px 8px #000; opacity: 0; transition: opacity 0.6s;
-  text-transform: uppercase; white-space: nowrap;
-}
-#hud-result.show { opacity: 1; transition: none; }
+.gold { color: #ffd75a; }
+ol.how { margin: 4px 0 8px; padding-left: 18px; }
+ol.how li { margin: 2px 0; }
+#spell-list div { margin: 3px 0; }
+#lock-hint { white-space: normal; max-width: 90%; text-align: center; font-size: 12px; }

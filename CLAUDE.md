@@ -82,20 +82,21 @@ Lưu ý: `vosk-browser` ít được cập nhật gần đây. Nếu gặp lỗi
 ### 4.2 Pipeline giọng nói
 
 ```
-Giữ phím [V] (push-to-talk)
-  → mở luồng micro (getUserMedia, đã xin quyền từ lobby)
-  → AudioWorklet đẩy PCM sang Web Worker chạy Vosk
-  → Vosk nhận diện với GRAMMAR = danh sách câu lệnh + "[unk]"
-  → thả phím [V] → lấy kết quả cuối
-  → khớp với bảng commands.ts (cho phép alias) → CastIntent { commandId, aimPoint }
-  → gửi server → server kiểm tra mana/cooldown → phát sự kiện cho mọi client
+Giữ CHUỘT PHẢI (hoặc V) (push-to-talk) → mana tụt liên tục
+  → AudioWorklet đẩy PCM sang Web Worker chạy Vosk (GRAMMAR = câu lệnh + "[unk]")
+  → kết quả TẠM (partial) chứa trọn một câu chú → chốt ngay (retrieveFinalResult)
+  → kết quả cuối khớp commands.ts → phép nằm trên tay (mana ngừng tụt, thể lực tụt)
+     (không khớp → nghe tiếp; thả chuột trước khi nhận ra → chờ kết quả cuối)
+  → THẢ chuột → bắn tới điểm ngắm lúc thả → CastIntent { commandId, aimPoint, empowered }
+  → gửi server → server kiểm tra mana/thể lực → phát sự kiện cho mọi client
 ```
 
-Quy tắc:
+Quy tắc (chi tiết + bảng tình huống: `docs/GDD.md` mục 3.1):
 - **Push-to-talk bắt buộc.** Không nghe liên tục: tránh micro bắt tiếng đồng đội từ loa/Discord.
-- **Điểm ngắm được chốt khi bắt đầu giữ [V]**, hiển thị vòng ngắm trên mặt đất trong lúc niệm. Độ trễ nhận diện được che bằng animation "niệm chú".
-- Kết quả `[unk]` hoặc không khớp → hiệu ứng "niệm hỏng" nhẹ, không tốn mana.
-- **Mọi kỹ năng đều có phím tắt dự phòng** (1–4). Có tùy chọn tắt hẳn giọng nói.
+- Luật mana/thể lực là logic thuần trong `shared/src/playerState.ts` (có test giả lập tình huống); `client/src/game/spellCaster.ts` nối luật đó với giọng nói, tay, hiệu ứng, HUD.
+- Người chơi đọc tự do bất kỳ câu chú nào. Phụ đề 2 giây cho biết vừa đọc gì.
+- **Mọi kỹ năng đều có phím tắt dự phòng** (1–4, dùng khi đang giữ chuột phải). Có tùy chọn tắt hẳn giọng nói.
+- Độ trễ đo trong voice-lab: "từ lúc ngừng nói → phép lên tay" (hoặc "từ lúc thả chuột → kết quả" nếu thả sớm).
 - Model Vosk tải **một lần ở lobby** với thanh tiến trình, cache bằng Cache Storage API.
 - Ghi log (dev mode) mỗi lần nhận diện: text, thời gian từ thả phím → kết quả. Dùng để đo độ trễ.
 

@@ -41,15 +41,45 @@ Lặp lại ~10 đợt. Đợt 5 và đợt 10 có trùm. Lõi bị phá = thua.
 | Hành động | Phím |
 |---|---|
 | Di chuyển | WASD |
+| Chạy | Shift (tốn thể lực) |
 | Nhảy | Space |
 | Nhìn | Chuột (pointer lock) |
 | Đòn đánh thường | Chuột trái |
-| **Niệm chú (push-to-talk)** | **Giữ V** — hiện vòng ngắm trên đất tại tâm ngắm, nói, thả ra |
-| Kỹ năng dự phòng | 1 – 4 |
+| **Niệm chú (push-to-talk)** | **Giữ chuột phải** (hoặc giữ V) — đọc thần chú — thả ra để thi triển |
+| Kỹ năng dự phòng | 1 – 4 **trong lúc giữ chuột phải** (thay cho giọng nói) |
 | Chế độ xây tháp | B, chọn tháp bằng chuột giữa/lăn chuột, chuột trái để đặt |
 | Đánh dấu cho đồng đội | Chuột giữa (ping) |
 
-**Cảm giác khi niệm:** giữ V thì hai tay nhân vật bắt đầu tụ phép (animation `cast` lặp, có hạt sáng). Thả V thì nếu nhận diện đúng, phép bắn ra kèm chữ câu chú hiện mờ trên màn hình. Nếu sai, tay tóe khói và hiện "niệm hỏng". Animation tụ phép chính là thứ che độ trễ nhận diện.
+### 3.1 Cơ chế niệm phép (Mana – Thể lực)
+
+Người chơi **tự do đọc bất kỳ câu chú nào** (không cần theo chỉ dẫn).
+
+1. **Giữ chuột phải** → hai tay tụ một quả cầu sáng, micro bắt đầu nghe, **mana tụt liên tục** (~25/giây, hết thanh trong ~4 giây).
+2. Trên thanh mana có **mốc tròn ở 70%**. Nếu câu chú được nhận ra khi mana **còn ở trên mốc** → phép **cường hóa ✦** (to hơn 50%, vòng sóng vàng khi nổ).
+3. Câu chú được nhận ra → phép **hiện trên tay và được giữ** (quả cầu đổi màu theo phép; cường hóa có hào quang vàng). **Mana ngừng tụt và tự hồi** (~15/giây, sau 0,5 giây).
+4. Trong lúc **giữ phép trên tay, thể lực tụt** (~20/giây, ~5 giây là cạn). Dưới 30% thì thanh thể lực nhấp nháy đỏ và tay run.
+5. **Thả chuột phải** → phép bay tới vòng ngắm dưới tâm ngắm.
+6. Phụ đề hiện **2 giây** cho biết người chơi vừa đọc gì và có khớp câu chú nào không.
+
+Các tình huống đã giả lập và cách xử lý (kiểm thử tự động trong `shared/src/playerState.test.ts`):
+
+| Tình huống | Xử lý |
+|---|---|
+| Đọc nhanh, rõ | Phép cường hóa ✦ trên tay, thả chuột thì bắn |
+| Đọc chậm (mana đã qua mốc 70%) | Phép thường |
+| Đọc sai / không khớp câu nào | Tiếp tục nghe; hết mana → "Hết mana — phép tan biến" |
+| Thả chuột khi đang đọc dở | Chờ kết quả cuối (tối đa 3 giây): khớp → bắn ngay; không khớp → "Niệm hỏng" |
+| Bấm chuột phải lỡ tay (< 0,15 giây) | Hủy im lặng, không báo lỗi |
+| Mana < 10 khi bắt đầu | Không cho niệm, báo "Không đủ mana" |
+| Giữ phép quá lâu, thể lực về 0 | Phép tan biến: "Kiệt sức — phép tan biến" |
+| Chuyển cửa sổ / mất focus khi đang niệm | "Đã hủy phép" |
+| Micro chưa bật hoặc tắt giọng nói | Giữ chuột phải + phím 1–4 |
+| Đọc 2 câu liền nhau | Chỉ lấy câu đầu tiên |
+| Chạy (Shift) khi đang giữ phép | Thể lực tụt nhanh gấp đôi; về 0 thì khóa chạy tới khi hồi lại 25 |
+
+Thông số nằm trong `shared/src/balance.ts` (`CASTING`), chỉnh được mà không sửa logic. Chi phí mana riêng của từng câu (`costMana` trong bảng câu lệnh) **chưa dùng** — hiện chi phí = lượng mana tụt trong lúc niệm.
+
+**Cảm giác khi niệm:** hai tay tụ phép (animation `cast_loop`), câu đang nghe hiện ngay dưới tâm ngắm. Animation tụ phép che độ trễ nhận diện.
 
 ## 4. Class
 
@@ -137,7 +167,9 @@ Số lượng quái và máu quái **tăng theo số người chơi** trong phò
   - **Nhịp mở cửa:** đợt đầu quái chỉ tràn vào từ **cửa 1**; các đợt sau lần lượt mở thêm **cửa 2, 3, 4** → người chơi phải chia nhau giữ nhiều hướng. Thứ tự và đợt mở cửa sẽ chốt khi cân bằng ở Giai đoạn 1.
   - Quái đi theo đường: cổng sinh quái → cửa thành → pha lê. Tháp đặt dọc đường và quanh sân trong.
   - **Bối cảnh ban đêm:** trời sao, trăng, đuốc dọc tường thành, cửa thành và hai bên đường; 4 chậu lửa quanh pha lê. Pha lê là nguồn sáng xanh chính giữa thành.
-  - **Sương mù giới hạn bản đồ:** cách thành ~40m trong rừng có một bức tường sương mù dày (bán kính ~76m). Người chơi không đi xuyên qua được; cổng sinh quái nằm ngay mép sương → quái "bước ra từ sương mù".
+  - **Sương mù giới hạn bản đồ:** sương bắt đầu dày từ bán kính ~72m. Người chơi **đi vào sương được thêm ~12m**: càng vào sâu càng chậm (tới 35% tốc độ) và tầm nhìn chỉ còn vài mét, tới bán kính 84m thì bị chặn ("Sương mù quá dày, không thể đi tiếp"). Cổng sinh quái nằm ở mép sương → quái "bước ra từ sương mù".
+  - **Sân trong lát gạch đất**, quảng trường pha lê lát đá phiến, đường ngoài thành là đường đất. Sân chia 4 khu: **chợ** (cửa 1–2), **doanh trại** (2–3), **giếng & vườn** (3–4), **kho & chuồng** (4–1). Mỗi khu có cầu thang đá lên tường thành.
+  - **Rừng hỗn hợp:** thông cao 15–23m, thông vừa, thông thấp, cây tán tròn, rất nhiều bụi cây và đá. Thân cây và đá lớn chặn người chơi.
   - Đã có bản dựng placeholder (khối hình học) trong `client/src/render/citadel.ts`; kích thước dùng chung ở `shared/src/balance.ts` (`CITADEL`).
 - **Bản đồ 2–3 (Giai đoạn 3):** hai đường song song; đường chia nhánh có cổng mà người chơi có thể đóng/mở.
 

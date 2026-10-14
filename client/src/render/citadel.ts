@@ -1,12 +1,15 @@
 import * as THREE from 'three';
 import { CITADEL } from '@game/shared';
 import { Torches } from './torches.ts';
-import { glowTexture } from './textures.ts';
+import { dirtRoadTexture, earthBrickTexture, flagstoneTexture, glowTexture, grassTexture, stoneBlockTexture } from './textures.ts';
 import { mergeStaticMeshes } from './mergeStatic.ts';
+import { boxGeo, cylGeo, scaleUv } from './geometry.ts';
+import { buildForest } from './forest.ts';
+import { STAIR_HALF_ARC, buildCourtyard, stairAngles } from './courtyard.ts';
 
-// Placeholder geometry for map 1 "Thành Pha Lê": a round fortress with 4 arched
-// gatehouses, tall towers, a giant crystal in the middle and a pine forest outside.
-// Replace pieces with .glb art later (see docs/ASSETS.md).
+// Map 1 "Thành Pha Lê": a round fortress with 4 arched gatehouses, tall towers,
+// a brick-paved courtyard with themed quarters, a giant crystal in the middle and
+// a mixed forest outside. Placeholder art; replace pieces with .glb later (docs/ASSETS.md).
 
 const C = CITADEL;
 export const GATE_COLORS = ['#d9473b', '#3b7bd9', '#e0b62c', '#8e4bd1'] as const;
@@ -17,14 +20,21 @@ export const PEDESTAL_RADIUS = 3.8;
 export const WALL_HALF_THICKNESS = C.wallThickness / 2 + 0.6;
 const PLAZA_RADIUS = 9;
 const ROAD_WIDTH = 6;
+const STONE_TILE = 2; // meters per stone texture repeat
 const GATEHOUSE_DEPTH = C.wallThickness + 1.6;
 const GATEHOUSE_HEIGHT = C.wallHeight + 3;
 const GATE_TOWER_X = C.gateWidth / 2 + GATE_TOWER_RADIUS;
 const MID_TOWER_ANGLES = C.gateAngles.map((a) => a + Math.PI / 4);
 const BRAZIER_ANGLES = MID_TOWER_ANGLES;
-const BRAZIER_RADIUS = 12;
+const BRAZIER_RADIUS = 11.5;
 const OBELISK_RADIUS = 7.5;
 const ROAD_TORCH_RADII = [38, 48, 58, 68];
+
+export interface Collider {
+  x: number;
+  z: number;
+  r: number;
+}
 
 /** Point on the circle at angle a (a=0 → +Z). */
 export function polar(a: number, r: number, y = 0): THREE.Vector3 {
@@ -40,21 +50,20 @@ function gateLocal(a: number, x: number, z: number, y = 0): THREE.Vector3 {
   );
 }
 
+function angleDiff(a: number, b: number): number {
+  return Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+}
+
 /** Smallest absolute angle difference to any gate direction. */
 export function angleToNearestGate(a: number): number {
-  let best = Infinity;
-  for (const g of C.gateAngles) best = Math.min(best, Math.abs(Math.atan2(Math.sin(a - g), Math.cos(a - g))));
-  return best;
+  return Math.min(...C.gateAngles.map((g) => angleDiff(a, g)));
 }
 
-export interface Collider {
-  x: number;
-  z: number;
-  r: number;
+function roadSide(a: number, side: number): THREE.Vector3 {
+  return new THREE.Vector3(Math.cos(a), 0, -Math.sin(a)).multiplyScalar(side * (ROAD_WIDTH / 2 + 0.8));
 }
 
-/** Round obstacles the player cannot walk through (towers, pedestal, braziers…). */
-export function citadelColliders(): Collider[] {
+function structureColliders(): Collider[] {
   const out: Collider[] = [{ x: 0, z: 0, r: PEDESTAL_RADIUS }];
   const push = (p: THREE.Vector3, r: number) => out.push({ x: p.x, z: p.z, r });
   for (const a of C.gateAngles) {
@@ -71,12 +80,10 @@ export function citadelColliders(): Collider[] {
   return out;
 }
 
-function roadSide(a: number, side: number): THREE.Vector3 {
-  return new THREE.Vector3(Math.cos(a), 0, -Math.sin(a)).multiplyScalar(side * (ROAD_WIDTH / 2 + 0.8));
-}
-
 export interface Citadel {
   root: THREE.Group;
+  /** Round obstacles the player cannot walk through (towers, props, tree trunks…). */
+  colliders: Collider[];
   update(dt: number, time: number): void;
 }
 
@@ -87,10 +94,11 @@ export function buildCitadel(scene: THREE.Scene): Citadel {
 
   const mat = (color: number, extra: THREE.MeshStandardMaterialParameters = {}) =>
     new THREE.MeshStandardMaterial({ color, roughness: 0.92, flatShading: true, ...extra });
-  const stone = mat(0x9a948b);
-  const stoneDark = mat(0x6f6a63);
+  const stoneTex = stoneBlockTexture();
+  const stone = new THREE.MeshStandardMaterial({ map: stoneTex, bumpMap: stoneTex, bumpScale: 1.5, color: 0xd6d0c6, roughness: 0.95 });
+  const stoneDark = new THREE.MeshStandardMaterial({ map: stoneTex, bumpMap: stoneTex, bumpScale: 1.5, color: 0x9c968c, roughness: 0.95 });
   const roof = mat(0x5a2620);
-  const wood = mat(0x4a3220);
+  const wood = mat(0x6a4a2e);
   const iron = mat(0x2a2a2e, { metalness: 0.6, roughness: 0.5 });
   const add = <T extends THREE.Object3D>(o: T, shadows = true): T => {
     o.traverse((c) => {
@@ -103,30 +111,46 @@ export function buildCitadel(scene: THREE.Scene): Citadel {
     return o;
   };
 
-  // --- Ground ------------------------------------------------------------------
-  const flat = (geo: THREE.BufferGeometry, color: number, y: number) => {
-    const m = new THREE.Mesh(geo, mat(color));
+  // --- Ground: grass, brick-paved courtyard, flagstone plaza, dirt roads -------
+  const ground = (geo: THREE.BufferGeometry, material: THREE.Material, y: number) => {
+    const m = new THREE.Mesh(geo, material);
     m.rotation.x = -Math.PI / 2;
     m.position.y = y;
     m.receiveShadow = true;
     root.add(m);
   };
-  flat(new THREE.PlaneGeometry(600, 600), 0x3d5a2c, 0);
-  flat(new THREE.CircleGeometry(C.wallRadius, 64), 0x8a7d66, 0.02);
-  flat(new THREE.CircleGeometry(PLAZA_RADIUS + 3, 48), 0x6e6a64, 0.035);
-  flat(new THREE.CircleGeometry(PLAZA_RADIUS, 48), 0xa39d92, 0.045);
-
-  const roadMat = mat(0x6e5236);
-  const roadLen = C.wallRadius + C.roadLength - PLAZA_RADIUS;
+  ground(scaleUv(new THREE.PlaneGeometry(600, 600), 600 / 8), new THREE.MeshStandardMaterial({ map: grassTexture(), roughness: 1 }), 0);
+  const brick = earthBrickTexture();
+  ground(
+    scaleUv(new THREE.CircleGeometry(C.wallRadius, 72), (C.wallRadius * 2) / 2),
+    new THREE.MeshStandardMaterial({ map: brick, bumpMap: brick, bumpScale: 2, roughness: 0.95 }),
+    0.02,
+  );
+  ground(new THREE.RingGeometry(PLAZA_RADIUS, PLAZA_RADIUS + 0.6, 48), stoneDark, 0.04);
+  ground(
+    scaleUv(new THREE.CircleGeometry(PLAZA_RADIUS, 48), (PLAZA_RADIUS * 2) / 4),
+    new THREE.MeshStandardMaterial({ map: flagstoneTexture(), color: 0xdedad2, roughness: 0.9 }),
+    0.045,
+  );
+  const roadMat = new THREE.MeshStandardMaterial({ map: dirtRoadTexture(), roughness: 1 });
   for (const a of C.gateAngles) {
-    const road = new THREE.Mesh(new THREE.BoxGeometry(ROAD_WIDTH, 0.06, roadLen), roadMat);
-    road.position.copy(polar(a, PLAZA_RADIUS + roadLen / 2, 0.03));
+    // Outside the gate only: the courtyard is paved.
+    const len = C.roadLength + 4;
+    const road = new THREE.Mesh(boxGeo(ROAD_WIDTH, 0.06, len, ROAD_WIDTH), roadMat);
+    road.position.copy(polar(a, C.wallRadius + len / 2, 0.03));
     road.rotation.y = a;
     road.receiveShadow = true;
     root.add(road);
+    // Brick path from the gate to the plaza, slightly darker.
+    const pathLen = C.wallRadius - PLAZA_RADIUS;
+    const path = new THREE.Mesh(boxGeo(5, 0.04, pathLen, 2), new THREE.MeshStandardMaterial({ map: brick, color: 0xb59a84, roughness: 0.95 }));
+    path.position.copy(polar(a, PLAZA_RADIUS + pathLen / 2, 0.04));
+    path.rotation.y = a;
+    path.receiveShadow = true;
+    root.add(path);
   }
 
-  // --- Curtain wall (instanced), with gaps at the gates and mid towers --------
+  // --- Curtain wall (instanced), with gaps at the gates ------------------------
   const SEGMENTS = 120;
   const segLen = ((2 * Math.PI * C.wallRadius) / SEGMENTS) * 1.04;
   const gateGap = GATE_TOWER_X / C.wallRadius;
@@ -138,13 +162,13 @@ export function buildCitadel(scene: THREE.Scene): Citadel {
   const H = C.wallHeight;
   const T = C.wallThickness;
   const n = segAngles.length;
-  const body = new THREE.InstancedMesh(new THREE.BoxGeometry(segLen, H, T), stone, n);
-  const plinth = new THREE.InstancedMesh(new THREE.BoxGeometry(segLen, 2.2, T + 1.2), stoneDark, n);
-  const trim = new THREE.InstancedMesh(new THREE.BoxGeometry(segLen, 0.45, T + 0.4), stoneDark, n);
-  const parapet = new THREE.InstancedMesh(new THREE.BoxGeometry(segLen, 0.9, 0.45), stone, n);
-  const merlons = new THREE.InstancedMesh(new THREE.BoxGeometry(0.85, 1.3, 0.55), stone, n * 2);
+  const body = new THREE.InstancedMesh(boxGeo(segLen, H, T, STONE_TILE), stone, n);
+  const plinth = new THREE.InstancedMesh(boxGeo(segLen, 2.2, T + 1.2, STONE_TILE), stoneDark, n);
+  const trim = new THREE.InstancedMesh(boxGeo(segLen, 0.45, T + 0.4, STONE_TILE), stoneDark, n);
+  const parapet = new THREE.InstancedMesh(boxGeo(segLen, 0.9, 0.45, STONE_TILE), stone, n);
+  const merlons = new THREE.InstancedMesh(boxGeo(0.85, 1.3, 0.55, STONE_TILE), stone, n * 2);
   const buttressAngles = segAngles.filter((_, i) => i % 3 === 1);
-  const buttress = new THREE.InstancedMesh(new THREE.BoxGeometry(1.3, H * 0.7, 1.4), stoneDark, buttressAngles.length);
+  const buttress = new THREE.InstancedMesh(boxGeo(1.3, H * 0.7, 1.4, STONE_TILE), stoneDark, buttressAngles.length);
 
   const m4 = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -155,7 +179,7 @@ export function buildCitadel(scene: THREE.Scene): Citadel {
   segAngles.forEach((a, i) => {
     q.setFromAxisAngle(up, a);
     body.setMatrixAt(i, m4.compose(polar(a, C.wallRadius, H / 2), q, one));
-    body.setColorAt(i, tint.setHSL(0.09, 0.06, 0.52 + ((i * 37) % 11) / 110));
+    body.setColorAt(i, tint.setScalar(0.92 + ((i * 37) % 11) / 110));
     plinth.setMatrixAt(i, m4.compose(polar(a, C.wallRadius, 1.1), q, one));
     trim.setMatrixAt(i, m4.compose(polar(a, C.wallRadius, H - 1.2), q, one));
     parapet.setMatrixAt(i, m4.compose(polar(a, C.wallRadius - T / 2 + 0.22, H + 0.45), q, one));
@@ -169,11 +193,13 @@ export function buildCitadel(scene: THREE.Scene): Citadel {
   });
   for (const m of [body, plinth, trim, parapet, merlons, buttress]) add(m);
 
-  // Torches on the inner face of the wall (glow only).
+  // Torches on the inner face of the wall (glow only), skipping gates, towers and stairs.
+  const stairs = stairAngles();
   for (let k = 0; k < 24; k++) {
     const a = (k / 24) * Math.PI * 2 + Math.PI / 24;
     if (angleToNearestGate(a) < gateGap + 0.08) continue;
-    if (MID_TOWER_ANGLES.some((m) => Math.abs(Math.atan2(Math.sin(a - m), Math.cos(a - m))) < 0.16)) continue;
+    if (MID_TOWER_ANGLES.some((m) => angleDiff(a, m) < 0.16)) continue;
+    if (stairs.some((s) => angleDiff(a, s) < STAIR_HALF_ARC + 0.05)) continue;
     torches.add(polar(a, C.wallRadius - T / 2 - 0.45, 4.2), 'wall', { facing: a + Math.PI });
   }
 
@@ -186,10 +212,9 @@ export function buildCitadel(scene: THREE.Scene): Citadel {
     g.rotation.y = a;
 
     g.add(new THREE.Mesh(gatehouseGeo, stone));
-    // Battlements on top of the gatehouse, front and back.
     for (let k = -2; k <= 2; k++) {
       for (const side of [-1, 1]) {
-        const m = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.3, 0.6), stone);
+        const m = new THREE.Mesh(boxGeo(0.9, 1.3, 0.6, STONE_TILE), stone);
         m.position.set(k * 2.2, GATEHOUSE_HEIGHT + 0.65, side * (GATEHOUSE_DEPTH / 2 - 0.3));
         g.add(m);
       }
@@ -205,7 +230,7 @@ export function buildCitadel(scene: THREE.Scene): Citadel {
     g.add(crossBar);
     // Heavy doors, swung open against the inner passage.
     for (const side of [-1, 1]) {
-      const door = new THREE.Mesh(new THREE.BoxGeometry(0.25, 6.2, 3.4), wood);
+      const door = new THREE.Mesh(boxGeo(0.25, 6.2, 3.4, 1), wood);
       door.position.set(side * 3.65, 3.1, -GATEHOUSE_DEPTH / 2 - 1.7);
       g.add(door);
       for (const y of [1.2, 5]) {
@@ -214,11 +239,9 @@ export function buildCitadel(scene: THREE.Scene): Citadel {
         g.add(band);
       }
     }
-    // Banner with the gate's color over the arch.
     const banner = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 3.6), mat(new THREE.Color(color).getHex(), { side: THREE.DoubleSide }));
     banner.position.set(0, C.gateHeight + 2.6, GATEHOUSE_DEPTH / 2 + 0.03);
     g.add(banner);
-    // Gate towers.
     for (const side of [-1, 1]) {
       const tower = makeTower(GATE_TOWER_RADIUS, H + 5, { stone, stoneDark, roof, iron }, 'roof');
       tower.position.set(side * GATE_TOWER_X, 0, 0);
@@ -230,14 +253,12 @@ export function buildCitadel(scene: THREE.Scene): Citadel {
     label.position.copy(polar(a, C.wallRadius, GATEHOUSE_HEIGHT + 3.2));
     root.add(label);
 
-    // Torches beside the arch on both faces; one real light per face.
     for (const z of [GATEHOUSE_DEPTH / 2 + 0.45, -GATEHOUSE_DEPTH / 2 - 0.45]) {
       const facing = z > 0 ? a : a + Math.PI;
       torches.add(gateLocal(a, -4.7, z, 5), 'wall', { facing, light: true });
       torches.add(gateLocal(a, 4.7, z, 5), 'wall', { facing });
     }
 
-    // Road torch posts + monster portal at the end of the road (inside the fog).
     for (const r of ROAD_TORCH_RADII) {
       for (const side of [-1, 1]) torches.add(polar(a, r, 2.6).add(roadSide(a, side)), 'post');
     }
@@ -266,13 +287,13 @@ export function buildCitadel(scene: THREE.Scene): Citadel {
     torches.add(polar(a, C.wallRadius - MID_TOWER_RADIUS - 0.4, 4.5), 'wall', { facing: a + Math.PI });
   }
 
+  // --- Courtyard props ------------------------------------------------------------
+  const courtyard = buildCourtyard({ stone, stoneDark, wood, iron, roof });
+  root.add(courtyard.group);
+
   // --- Crystal plaza ---------------------------------------------------------------
-  const ped1 = new THREE.Mesh(new THREE.CylinderGeometry(PEDESTAL_RADIUS - 0.6, PEDESTAL_RADIUS, 1.2, 8), stoneDark);
-  ped1.position.y = 0.6;
-  const ped2 = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.8, 0.8, 8), stone);
-  ped2.position.y = 1.6;
-  add(ped1);
-  add(ped2);
+  add(new THREE.Mesh(cylGeo(PEDESTAL_RADIUS - 0.6, PEDESTAL_RADIUS, 1.2, 8, STONE_TILE), stoneDark).translateY(0.6));
+  add(new THREE.Mesh(cylGeo(2.4, 2.8, 0.8, 8, STONE_TILE), stone).translateY(1.6));
 
   const crystalMat = new THREE.MeshStandardMaterial({
     color: 0x7fe9ff,
@@ -316,10 +337,9 @@ export function buildCitadel(scene: THREE.Scene): Citadel {
   halo.position.y = 0.07;
   root.add(halo);
 
-  // Obelisks ringing the plaza, tipped with small crystals.
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
-    const ob = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.6, 3.2, 4), stone);
+    const ob = new THREE.Mesh(cylGeo(0.35, 0.6, 3.2, 4, STONE_TILE), stone);
     ob.position.copy(polar(a, OBELISK_RADIUS, 1.6));
     ob.rotation.y = Math.PI / 4;
     add(ob);
@@ -329,7 +349,8 @@ export function buildCitadel(scene: THREE.Scene): Citadel {
   }
   for (const a of BRAZIER_ANGLES) torches.add(polar(a, BRAZIER_RADIUS, 1.5), 'brazier', { light: true });
 
-  root.add(buildForest());
+  const forest = buildForest();
+  root.add(forest.group);
 
   // Batch everything that never moves (keeps draw calls low on integrated GPUs).
   const animated = new Set<THREE.Object3D>([crystal, ...shards]);
@@ -338,6 +359,7 @@ export function buildCitadel(scene: THREE.Scene): Citadel {
 
   return {
     root,
+    colliders: [...structureColliders(), ...courtyard.colliders, ...forest.colliders],
     update(_dt, time) {
       crystal.rotation.y = time * 0.4;
       crystal.position.y = crystalBaseY + Math.sin(time * 1.5) * 0.25;
@@ -373,7 +395,7 @@ function gatehouseGeometry(): THREE.BufferGeometry {
   shape.holes.push(hole);
   const geo = new THREE.ExtrudeGeometry(shape, { depth: GATEHOUSE_DEPTH, bevelEnabled: false, curveSegments: 16 });
   geo.translate(0, 0, -GATEHOUSE_DEPTH / 2);
-  return geo;
+  return scaleUv(geo, 1 / STONE_TILE); // ExtrudeGeometry UVs are in meters
 }
 
 interface TowerMats {
@@ -386,16 +408,15 @@ interface TowerMats {
 /** Round tower; local +Z faces outward. Top is a cone roof or battlements + banner. */
 function makeTower(radius: number, height: number, m: TowerMats, top: 'roof' | 'battlements'): THREE.Group {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius + 0.2, height, 14), m.stone);
+  const body = new THREE.Mesh(cylGeo(radius, radius + 0.2, height, 14, STONE_TILE), m.stone);
   body.position.y = height / 2;
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(radius + 0.5, radius + 0.7, 2.4, 14), m.stoneDark);
+  const base = new THREE.Mesh(cylGeo(radius + 0.5, radius + 0.7, 2.4, 14, STONE_TILE), m.stoneDark);
   base.position.y = 1.2;
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(radius + 0.15, radius + 0.15, 0.4, 14), m.stoneDark);
+  const band = new THREE.Mesh(cylGeo(radius + 0.15, radius + 0.15, 0.4, 14, STONE_TILE), m.stoneDark);
   band.position.y = height * 0.55;
-  const corbel = new THREE.Mesh(new THREE.CylinderGeometry(radius + 0.55, radius, 1, 14), m.stoneDark);
+  const corbel = new THREE.Mesh(cylGeo(radius + 0.55, radius, 1, 14, STONE_TILE), m.stoneDark);
   corbel.position.y = height - 0.5;
   g.add(body, base, band, corbel);
-  // Arrow slits on the outer half.
   for (const y of [height * 0.35, height * 0.72]) {
     for (const off of [-0.5, 0, 0.5]) {
       const slit = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.3, 0.3), m.iron);
@@ -414,7 +435,7 @@ function makeTower(radius: number, height: number, m: TowerMats, top: 'roof' | '
     const count = 12;
     for (let i = 0; i < count; i++) {
       const a = (i / count) * Math.PI * 2;
-      const mer = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.3, 0.5), m.stone);
+      const mer = new THREE.Mesh(boxGeo(0.9, 1.3, 0.5, STONE_TILE), m.stone);
       mer.position.set(Math.sin(a) * (radius + 0.3), height + 0.65, Math.cos(a) * (radius + 0.3));
       mer.rotation.y = a;
       g.add(mer);
@@ -429,59 +450,6 @@ function makeTower(radius: number, height: number, m: TowerMats, top: 'roof' | '
     g.add(pole, flag);
   }
   return g;
-}
-
-function buildForest(): THREE.Group {
-  const group = new THREE.Group();
-  const rng = mulberry32(7);
-  const positions: Array<{ x: number; z: number; h: number }> = [];
-  const inner2 = C.forestInnerRadius ** 2;
-  const outer2 = C.forestOuterRadius ** 2;
-  let guard = 0;
-  while (positions.length < 1500 && guard++ < 20000) {
-    const r = Math.sqrt(inner2 + rng() * (outer2 - inner2));
-    const a = rng() * Math.PI * 2;
-    const x = Math.sin(a) * r;
-    const z = Math.cos(a) * r;
-    // Keep the four roads (and a margin around them) clear of trees.
-    const onRoad = C.gateAngles.some((g) => {
-      const along = x * Math.sin(g) + z * Math.cos(g);
-      const across = Math.abs(x * Math.cos(g) - z * Math.sin(g));
-      return along > 0 && across < ROAD_WIDTH / 2 + 4 + rng() * 3;
-    });
-    if (onRoad) continue;
-    positions.push({ x, z, h: 7 + rng() * 9 });
-  }
-
-  const unitCylinder = new THREE.CylinderGeometry(0.7, 1, 1, 6).translate(0, 0.5, 0);
-  const unitCone = new THREE.ConeGeometry(1, 1, 7).translate(0, 0.5, 0);
-  const n = positions.length;
-  const trunks = new THREE.InstancedMesh(unitCylinder, new THREE.MeshStandardMaterial({ color: 0x4a3322, flatShading: true }), n);
-  const foliageMat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 0.95 });
-  const lower = new THREE.InstancedMesh(unitCone, foliageMat, n);
-  const upper = new THREE.InstancedMesh(unitCone, foliageMat, n);
-
-  const m4 = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  const pos = new THREE.Vector3();
-  const scl = new THREE.Vector3();
-  const color = new THREE.Color();
-  positions.forEach(({ x, z, h }, i) => {
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rng() * Math.PI * 2);
-    const trunkH = h * 0.25;
-    trunks.setMatrixAt(i, m4.compose(pos.set(x, 0, z), q, scl.set(0.3, trunkH, 0.3)));
-    const base = trunkH * 0.6;
-    lower.setMatrixAt(i, m4.compose(pos.set(x, base, z), q, scl.set(h * 0.28, h * 0.6, h * 0.28)));
-    upper.setMatrixAt(i, m4.compose(pos.set(x, base + h * 0.35, z), q, scl.set(h * 0.19, h * 0.5, h * 0.19)));
-    color.setHSL(0.32 + rng() * 0.06, 0.4 + rng() * 0.15, 0.18 + rng() * 0.07);
-    lower.setColorAt(i, color);
-    upper.setColorAt(i, color.offsetHSL(0, 0, 0.04));
-  });
-  for (const m of [trunks, lower, upper]) {
-    m.castShadow = true;
-    group.add(m);
-  }
-  return group;
 }
 
 function makeNumberSprite(text: string, bg: string): THREE.Sprite {
@@ -507,16 +475,4 @@ function makeNumberSprite(text: string, bg: string): THREE.Sprite {
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, fog: false }));
   sprite.scale.setScalar(3.4);
   return sprite;
-}
-
-/** Small deterministic RNG so the forest looks the same every load. */
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }

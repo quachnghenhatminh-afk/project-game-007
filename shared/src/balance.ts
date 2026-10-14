@@ -17,9 +17,37 @@ export const TOWERS: Record<TowerId, TowerStats> = {
 export const PLAYER = {
   maxHp: 100,
   maxMana: 100,
-  manaRegenPerSec: 8,
+  maxStamina: 100,
   /** Temporary: players cannot die until combat exists (Phase 1). */
   invincible: true,
+} as const;
+
+/** Spellcasting/stamina tuning. See shared/src/playerState.ts for the rules. */
+export const CASTING = {
+  /** Mana lost per second while channeling (right mouse held, spell not recognized yet): full bar ≈ 4s. */
+  manaDrainPerSec: 25,
+  /** Recognized while mana ≥ this fraction of max → empowered spell. */
+  empowerThreshold: 0.7,
+  /** Empowered spells are this much bigger. */
+  empowerScale: 1.5,
+  /** Cannot start channeling below this much mana. */
+  minManaToChannel: 10,
+  manaRegenPerSec: 15,
+  /** Mana starts refilling this long after draining stops. */
+  manaRegenDelaySec: 0.5,
+  /** Stamina lost per second while holding a charged spell: full bar ≈ 5s. */
+  staminaHoldDrainPerSec: 20,
+  staminaSprintDrainPerSec: 15,
+  staminaRegenPerSec: 22,
+  staminaRegenDelaySec: 0.8,
+  /** After stamina hits 0, sprinting stays locked until stamina is back to this. */
+  staminaSprintUnlock: 25,
+  /** Below this fraction the stamina bar and hands warn the player. */
+  staminaLowWarning: 0.3,
+  /** Releasing faster than this with nothing recognized = accidental click, cancelled silently. */
+  tapCancelSec: 0.15,
+  /** After release, how long to wait for the recognizer before giving up. */
+  resolveTimeoutSec: 3,
 } as const;
 
 /** Circular citadel layout (meters). Shared so server pathing matches the client scene. */
@@ -35,7 +63,9 @@ export const CITADEL = {
   roadLength: 42,
   forestInnerRadius: 40,
   forestOuterRadius: 130,
-  /** Players cannot walk past this radius (hidden inside the fog wall). */
-  playAreaRadius: 72,
+  /** Thick fog begins here; players slow down and visibility drops as they go deeper. */
+  fogStartRadius: 72,
   fogWallRadius: 76,
+  /** Players cannot walk past this radius (a few meters inside the fog wall). */
+  playAreaRadius: 84,
 } as const;

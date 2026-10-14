@@ -11,13 +11,8 @@
       <section id="stage">
         <div id="view"></div>
         <div id="crosshair"></div>
-        <div id="lock-hint">Click vào khung 3D để khóa chuột · WASD đi · Giữ <kbd>V</kbd> để niệm</div>
+        <div id="lock-hint">Click trái để khóa chuột · WASD đi · Shift chạy · <b>Giữ chuột phải</b> (hoặc <kbd>V</kbd>) rồi đọc thần chú · thả ra để thi triển · <kbd>1</kbd>–<kbd>4</kbd> thay giọng nói</div>
         <div id="hud-target"></div>
-        <div id="hud-rec" class="hidden">
-          <div class="rec-label">● Đang nghe…</div>
-          <div id="hud-live"></div>
-        </div>
-        <div id="hud-result"></div>
         <div id="hud-heard"></div>
       </section>
 
@@ -48,16 +43,29 @@
         </div>
 
         <div class="card">
-          <h2>3. Kiểm tra</h2>
-          <label class="small">Bộ câu lệnh
-            <select id="opt-set">
-              <option value="all">Tất cả (18 câu)</option>
-              <option value="mage">Pháp Sư (4 câu)</option>
-              <option value="mage+common">Pháp Sư + Chung (6 câu)</option>
-            </select>
-          </label>
-          <label class="small"><input type="checkbox" id="opt-free" /> Nói tự do (không chấm điểm)</label>
-          <div id="target-box">Hãy hô: <b id="target-text">—</b> <button id="btn-skip" class="link">Đổi câu</button></div>
+          <h2>3. Cách niệm phép</h2>
+          <ol class="small how">
+            <li><b>Giữ chuột phải</b> → tay tụ phép, <b>mana tụt dần</b>.</li>
+            <li>Đọc <b>bất kỳ câu chú nào</b> (danh sách bên dưới).</li>
+            <li>Đọc xong <b>trước khi mana xuống dưới mốc tròn (70%)</b> → phép <span class="gold">cường hóa ✦</span> (to hơn 50%).</li>
+            <li>Phép nằm trên tay: mana ngừng tụt và hồi lại, <b>thể lực tụt dần</b>.</li>
+            <li><b>Thả chuột</b> → phép bay tới vòng ngắm.</li>
+          </ol>
+          <details class="small">
+            <summary>Danh sách câu chú</summary>
+            <div id="spell-list"></div>
+          </details>
+          <label class="small"><input type="checkbox" id="opt-guided" /> Luyện theo câu mẫu (chấm điểm đúng/sai)</label>
+          <div id="guided-box" class="hidden">
+            <label class="small">Bộ câu
+              <select id="opt-set">
+                <option value="all">Tất cả (18 câu)</option>
+                <option value="mage">Pháp Sư (4 câu)</option>
+                <option value="mage+common">Pháp Sư + Chung (6 câu)</option>
+              </select>
+            </label>
+            <div id="target-box">Hãy đọc: <b id="target-text">—</b> <button id="btn-skip" class="link">Đổi câu</button></div>
+          </div>
           <div id="last" class="small"></div>
           <button id="btn-undo" class="link">Bỏ lần vừa rồi (nói nhầm)</button>
         </div>
@@ -66,7 +74,7 @@
           <h2>4. Thống kê</h2>
           <div id="summary"></div>
           <details>
-            <summary class="small">Chi tiết từng câu lệnh</summary>
+            <summary class="small">Chi tiết từng câu chú</summary>
             <div id="per-command"></div>
           </details>
         </div>

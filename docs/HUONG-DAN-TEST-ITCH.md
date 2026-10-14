@@ -33,8 +33,9 @@ Thử lần lượt trên **Chrome**, **Edge**, **Firefox**. Đeo tai nghe để
 2. Bấm **Cho phép micro** → trình duyệt hỏi quyền → **Allow**. Nói thử, thanh xanh phải nhảy.
 3. Bấm **Tải model Vosk** → chờ thanh tiến trình chạy hết và hiện "Model sẵn sàng".
 4. Click vào khung 3D để khóa chuột. Dùng WASD đi lại.
-5. **Giữ phím V**, hô câu hiện ở trên màn hình ("Hãy hô: …"), rồi **thả V**. Làm khoảng **50 lần** (mỗi câu ~3 lần).
+5. Tick **"Luyện theo câu mẫu"** (mục 3) để được chấm điểm. **Giữ chuột phải** (hoặc phím V), đọc câu hiện trên màn hình ("Hãy đọc: …"); khi quả cầu trên tay đổi màu thì **thả chuột**. Làm khoảng **50 lần** (mỗi câu ~3 lần).
    - Nếu lỡ nói nhầm/ho/vấp → bấm **"Bỏ lần vừa rồi"**.
+   - Thử thêm vài lần **khi đang khóa chuột** (đã click vào khung 3D) để chắc chắn micro và khóa chuột chạy cùng lúc.
 6. (Chrome/Edge) Chọn **Web Speech API** rồi làm thêm ~30 lần để so sánh.
 7. Bấm **Sao chép kết quả** và dán vào chat cho Claude, kèm tên trình duyệt.
 

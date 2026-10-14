@@ -62,27 +62,37 @@ export class SpellEffects {
     return ray.origin.clone().addScaledVector(flatDir, 25).setY(0);
   }
 
-  showAimRing(point: THREE.Vector3 | null): void {
+  /**
+   * Shows the target ring on the ground (null hides it).
+   * @param scale ring size multiplier (empowered spells are bigger)
+   * @param color ring color (gold while an empowered spell is held)
+   */
+  showAimRing(point: THREE.Vector3 | null, scale = 1, color = 0xfff1a8): void {
     this.aimRing.visible = point !== null;
-    if (point) this.aimRing.position.set(point.x, 0.12, point.z);
+    if (!point) return;
+    this.aimRing.position.set(point.x, 0.12, point.z);
+    this.aimRing.scale.setScalar(scale);
+    (this.aimRing.material as THREE.MeshBasicMaterial).color.set(color);
   }
 
-  cast(commandId: string, point: THREE.Vector3): void {
+  /** @param scale size multiplier (CASTING.empowerScale for empowered spells) */
+  cast(commandId: string, point: THREE.Vector3, scale = 1): void {
     const color = SPELL_COLORS[commandId] ?? 0xffffff;
+    if (scale > 1) this.spawnShockwave(point, 6 * scale);
     if (commandId === 'meteor') {
-      this.spawnSphere(color, point, 2.5, 3.5, 1.5); // warning marker while it falls
+      this.spawnSphere(color, point, 2.5 * scale, 3.5 * scale, 1.5); // warning marker while it falls
       const rock = this.spawnSphere(0x5a2a1a, point, 0, 2.5, 1.5);
       rock.tick = (e, k) => {
         e.object.position.set(point.x + 30 * (1 - k), 1 + 60 * (1 - k), point.z);
-        e.object.scale.setScalar(2.5);
+        e.object.scale.setScalar(2.5 * scale);
         e.material.opacity = 1;
       };
-      this.spawnSphere(color, point, 1.5, 12, 1.0, 1.5);
+      this.spawnSphere(color, point, 1.5, 12 * scale, 1.0, 1.5);
       return;
     }
     if (commandId === 'lightning') {
       const bolt = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.25, 0.25, 40, 6),
+        new THREE.CylinderGeometry(0.25 * scale, 0.25 * scale, 40, 6),
         new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false }),
       );
       bolt.position.set(point.x, 20, point.z);
@@ -91,7 +101,21 @@ export class SpellEffects {
         e.object.visible = Math.floor(k * 12) % 2 === 0;
       });
     }
-    this.spawnSphere(color, point, 0.5, commandId === 'frost' ? 5 : 4, 0.9);
+    this.spawnSphere(color, point, 0.5, (commandId === 'frost' ? 5 : 4) * scale, 0.9);
+  }
+
+  /** Flat gold ring racing outward along the ground (empowered spells). */
+  private spawnShockwave(at: THREE.Vector3, radius: number): void {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.85, 1, 48),
+      new THREE.MeshBasicMaterial({ color: 0xffd75a, transparent: true, depthWrite: false, side: THREE.DoubleSide }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(at.x, 0.2, at.z);
+    this.add(ring, 0.6, 0, (e, k) => {
+      e.object.scale.setScalar(0.5 + radius * Math.sqrt(k));
+      e.material.opacity = 1 - k;
+    });
   }
 
   /** Grey puff in front of the camera for a failed cast. */
