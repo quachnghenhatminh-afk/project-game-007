@@ -11,11 +11,14 @@ export interface World {
   start(): void;
 }
 
-/** Renderer + scenes + camera, sized to fill `container`. Lighting lives in environment.ts. */
-export function createWorld(container: HTMLElement): World {
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
+/**
+ * Renderer + scenes + camera, sized to fill `container`. Lighting lives in environment.ts.
+ * @param lowQuality phones: 1× pixel ratio, no antialias, no shadows
+ */
+export function createWorld(container: HTMLElement, lowQuality = false): World {
+  const renderer = new THREE.WebGLRenderer({ antialias: !lowQuality, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(lowQuality ? Math.min(window.devicePixelRatio, 1.25) : Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = !lowQuality;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.autoClear = false;

@@ -158,9 +158,11 @@ Không nhảy giai đoạn. Không làm tính năng của giai đoạn sau khi g
 ```
 pnpm install
 pnpm voice:model  # tải model Vosk tiếng Việt (1 lần, ~34MB, không commit) + xuất model-vocab.txt
-pnpm dev          # client (hiện tại: đi dạo trong thành), http://localhost:5173
-pnpm voice-lab    # trang thử giọng nói, http://localhost:5174
-pnpm build:itch   # đóng gói release/voice-lab-itch.zip cho itch.io
+pnpm dev          # bản chơi (desktop + mobile, có giọng nói), http://localhost:5173
+pnpm voice-lab    # trang đo giọng nói, http://localhost:5174
+pnpm build:itch   # bản chơi → release/game-itch.zip (upload chính lên itch.io)
+pnpm build:itch-lab  # trang đo giọng nói → release/voice-lab-itch.zip
+pnpm preview:itch # chạy thử đúng bản đã build, http://localhost:4173
 pnpm test         # Vitest (shared)
 pnpm typecheck
 ```

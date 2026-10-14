@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import { CITADEL } from '@game/shared';
 import type { Collider } from './citadel.ts';
 
@@ -20,7 +20,8 @@ interface Spot {
   z: number;
 }
 
-export function buildForest(seed = 7): Forest {
+/** @param density 0..1 multiplier on how many trees/bushes/rocks are placed (phones use less). */
+export function buildForest(seed = 7, density = 1): Forest {
   const rnd = mulberry32(seed);
   const group = new THREE.Group();
   const colliders: Collider[] = [];
@@ -35,7 +36,8 @@ export function buildForest(seed = 7): Forest {
     }
     return best;
   };
-  const scatter = (count: number, rMin: number, rMax: number, roadClear: number): Spot[] => {
+  const scatter = (wanted: number, rMin: number, rMax: number, roadClear: number): Spot[] => {
+    const count = Math.round(wanted * density);
     const out: Spot[] = [];
     for (let guard = 0; out.length < count && guard < count * 20; guard++) {
       const r = Math.sqrt(rMin * rMin + rnd() * (rMax * rMax - rMin * rMin));

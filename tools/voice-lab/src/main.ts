@@ -41,6 +41,7 @@ const state = new PlayerState();
 const hud = new Hud($('stage'), state);
 const caster = new SpellCaster(state, arms, effects, hud, world.camera);
 player.sprintAllowed = () => state.canSprint;
+player.jumpAllowed = () => state.tryJump();
 let fogHintAt = 0;
 player.onBlockedByFog = () => {
   if (performance.now() - fogHintAt > 4000) hud.flash('Sương mù quá dày, không thể đi tiếp', '#b8c6e0');

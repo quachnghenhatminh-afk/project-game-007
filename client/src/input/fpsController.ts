@@ -28,6 +28,10 @@ export class FpsController {
   sprintAllowed: () => boolean = () => true;
   /** Called when the player pushes against the edge of the play area. */
   onBlockedByFog: () => void = () => {};
+  /** Set by the owner: called on each jump attempt; return false to refuse (not enough stamina). */
+  jumpAllowed: () => boolean = () => true;
+  /** Touch input (mobile): joystick vector (x = right, y = forward, length ≤ 1) and buttons. */
+  readonly touch = { active: false, x: 0, y: 0, sprint: false, jump: false };
   private keys = new Set<string>();
   private velY = 0;
   private onGround = true;
@@ -59,21 +63,30 @@ export class FpsController {
     this.controls.lock();
   }
 
+  /** Touch look: rotate the view by a drag delta in pixels. */
+  look(dx: number, dy: number, sensitivity = 0.005): void {
+    const r = this.camera.rotation;
+    r.order = 'YXZ';
+    r.y -= dx * sensitivity;
+    r.x = Math.max(-1.45, Math.min(1.45, r.x - dy * sensitivity));
+  }
+
   update(dt: number): void {
-    if (!this.controls.isLocked) {
+    const t = this.touch;
+    if (!this.controls.isLocked && !t.active) {
       this.speed = 0;
       this.wantsSprint = false;
       return;
     }
     const k = this.keys;
-    let fwd = (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0);
-    let right = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
+    let fwd = (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0) + t.y;
+    let right = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0) + t.x;
     const len = Math.hypot(fwd, right);
-    if (len > 0) {
+    if (len > 1) {
       fwd /= len;
       right /= len;
     }
-    this.wantsSprint = (k.has('ShiftLeft') || k.has('ShiftRight')) && len > 0;
+    this.wantsSprint = (k.has('ShiftLeft') || k.has('ShiftRight') || t.sprint) && len > 0.1;
     const pos = this.camera.position;
     const fog = fogDepth(Math.hypot(pos.x, pos.z));
     const base = this.wantsSprint && this.sprintAllowed() ? RUN_SPEED : WALK_SPEED;
@@ -87,9 +100,12 @@ export class FpsController {
     this.collide(pos, prevR);
     this.speed = dt > 0 ? Math.hypot(pos.x - prevX, pos.z - prevZ) / dt : 0;
 
-    if (k.has('Space') && this.onGround) {
-      this.velY = JUMP_SPEED;
-      this.onGround = false;
+    if ((k.has('Space') || t.jump) && this.onGround) {
+      t.jump = false;
+      if (this.jumpAllowed()) {
+        this.velY = JUMP_SPEED;
+        this.onGround = false;
+      }
     }
     this.velY -= GRAVITY * dt;
     pos.y += this.velY * dt;

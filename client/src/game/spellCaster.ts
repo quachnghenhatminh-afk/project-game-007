@@ -85,7 +85,7 @@ export class SpellCaster {
     this.channelStart = performance.now();
     this.lastHeard = '';
     if (!this.voice) {
-      this.hud.setListening(true, '(chưa bật micro — phím 1–5)');
+      this.hud.setListening(true, '(chưa bật micro — dùng 1–5)');
       return;
     }
     this.hud.setListening(true, '');
@@ -104,7 +104,7 @@ export class SpellCaster {
       if (this.finalizing) return; // the pending result will resolve it
       if (this.listening) void this.finalize(this.token);
       else this.state.resolveFailed();
-    } else if (r === 'tap') {
+    } else if (r === 'tap' || r === 'ended') {
       this.stopListening();
     }
   }
@@ -117,6 +117,18 @@ export class SpellCaster {
     this.stopListening();
     const empowered = this.state.empowerWindowOpen;
     if (this.state.recognize(cmd.id)) this.report('hotkey', cmd.phrases[0]!, cmd.id, 'spell', empowered, null, null);
+    this.resumeIfChanneling();
+  }
+
+  /** Auto-cast chains: still holding the button after a cast → listen for the next spell. */
+  private resumeIfChanneling(): void {
+    if (this.state.phase !== 'channeling' || !this.voice) return;
+    const tok = this.token;
+    this.lastHeard = '';
+    this.hud.setListening(true, '');
+    void this.engineIdle.then(() => {
+      if (tok === this.token && this.state.phase === 'channeling' && !this.listening) this.startListening(tok);
+    });
   }
 
   /** Focus lost, pointer unlocked, etc. */
@@ -144,7 +156,8 @@ export class SpellCaster {
           this.hud.setCharged(this.phrase(e.commandId), e.empowered);
           break;
         case 'fired': {
-          this.stopListening();
+          const chaining = this.state.phase === 'channeling'; // button still held
+          if (!chaining) this.stopListening();
           const scale = e.empowered ? CASTING.empowerScale : 1;
           if (getCommand(e.commandId)?.selfCast) {
             const cam = this.camera;
@@ -152,7 +165,7 @@ export class SpellCaster {
           } else {
             this.effects.cast(e.commandId, this.effects.aimPoint(this.camera), scale);
           }
-          this.arms.release(true, spellColor(e.commandId));
+          this.arms.release(true, spellColor(e.commandId), chaining);
           this.hud.setCharged(null);
           this.hud.flash(`${this.phrase(e.commandId)}${e.empowered ? ' ✦' : ''}`, e.empowered ? '#ffd75a' : '#ffffff');
           if (e.empowered) this.hud.pulsePerfect();
@@ -171,6 +184,17 @@ export class SpellCaster {
         case 'tap-cancelled':
           this.stopListening();
           this.arms.release(false);
+          break;
+        case 'channel-end':
+          this.stopListening();
+          this.arms.endChannel();
+          if (e.reason === 'no-mana') {
+            this.hud.flash('Hết mana', '#6fc3ff');
+            this.hud.flashBar('mana');
+          }
+          break;
+        case 'jump-refused':
+          this.hud.flashBar('stamina');
           break;
         case 'awaiting-result':
           break;
@@ -236,6 +260,8 @@ export class SpellCaster {
       this.state.recognize(m.command.id);
       this.hud.subtitle(text, m.command.phrases[0]!);
       this.report(voice.engine.id, text, m.command.id, 'spell', empowered, latency, fromRelease ? 'release' : latency === null ? null : 'speech-end');
+      this.channelStart = performance.now(); // next spell in the chain is timed from here
+      this.resumeIfChanneling();
     } else if (phase === 'channeling') {
       // Partial looked like a spell but the final text disagrees: keep listening.
       if (text) this.hud.subtitle(text, null);

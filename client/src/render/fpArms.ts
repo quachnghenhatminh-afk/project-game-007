@@ -42,6 +42,7 @@ export class FpArms {
   /** 0..1 progress of the release animation. */
   private releaseT = 0;
   private releaseOk = false;
+  private afterRelease: 'rest' | 'channel' = 'rest';
   private walkPhase = 0;
   private tmpPos = new THREE.Vector3();
   private tmpQ = new THREE.Quaternion();
@@ -89,14 +90,24 @@ export class FpArms {
     this.setOrbVisible(true);
   }
 
-  /** Throw the held spell forward (success) or let the orb puff out (failure). */
-  release(success: boolean, color?: number): void {
+  /**
+   * Throw the spell forward (success) or let the orb puff out (failure).
+   * @param thenChannel go back to gathering energy afterwards (cast button still held)
+   */
+  release(success: boolean, color?: number, thenChannel = false): void {
     if (this.state === 'rest') return;
     this.state = 'release';
     this.releaseT = 0;
     this.releaseOk = success;
+    this.afterRelease = thenChannel ? 'channel' : 'rest';
     if (!success) this.setColor(0x777777, 0x555555);
     else if (color !== undefined) this.setColor(color, color);
+  }
+
+  /** Cast button released after a chain: lower the hands, no puff. */
+  endChannel(): void {
+    if (this.state === 'release') this.afterRelease = 'rest';
+    else this.state = 'rest';
   }
 
   /** 0..1: how much the hands tremble (low stamina while holding a spell). */
@@ -125,7 +136,10 @@ export class FpArms {
     if (this.state === 'release') {
       this.releaseT += dt / 0.35;
       thrust = this.releaseOk ? Math.sin(Math.min(this.releaseT, 1) * Math.PI) * 0.16 : 0;
-      if (this.releaseT >= 1) this.state = 'rest';
+      if (this.releaseT >= 1) {
+        if (this.afterRelease === 'channel') this.startChannel();
+        else this.state = 'rest';
+      }
     }
 
     this.qA.setFromEuler(REST.rot);

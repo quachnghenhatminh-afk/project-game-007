@@ -1,58 +1,46 @@
-# Hướng dẫn thử Voice Lab trên itch.io (Giai đoạn 0)
+# Hướng dẫn đưa game lên itch.io
 
-Mục tiêu: kiểm tra micro + nhận diện giọng nói + khóa chuột có chạy **bên trong khung iframe của itch.io** không, và đo độ chính xác/độ trễ.
+Có 2 file zip:
+
+| File | Dùng để |
+|---|---|
+| `release/game-itch.zip` | **Bản chơi được** (máy tính + điện thoại). Đây là file upload chính. |
+| `release/voice-lab-itch.zip` | Trang đo giọng nói (thống kê độ chính xác / độ trễ) cho Giai đoạn 0. |
 
 ## Bước 1 — Tạo file zip
 
-Nhờ Claude chạy (hoặc tự chạy trong terminal ở thư mục dự án):
-
 ```
-pnpm build:itch
+pnpm build:itch        # bản chơi → release/game-itch.zip
+pnpm build:itch-lab    # trang đo giọng nói → release/voice-lab-itch.zip
 ```
-
-File tạo ra: `release/voice-lab-itch.zip` (~36MB).
 
 ## Bước 2 — Upload lên itch.io
 
 1. Đăng nhập itch.io → **Dashboard** → **Create new project**.
-2. **Title:** `voice-lab-test` (tùy ý).
-3. **Kind of project:** chọn **HTML**.
-4. **Uploads:** bấm **Upload files**, chọn `voice-lab-itch.zip`. Sau khi upload xong, tick **"This file will be played in the browser"**.
-5. **Embed options:**
-   - Viewport dimensions: **1280 × 720**.
+2. **Title:** `Thanh Pha Le` (tùy ý). **Kind of project:** **HTML**.
+3. **Uploads:** chọn `game-itch.zip`, tick **"This file will be played in the browser"**.
+4. **Embed options:**
+   - **Viewport dimensions:** `1280 × 720`.
+   - Tick **Mobile friendly** → **Orientation: Landscape** (xoay ngang).
    - Tick **Fullscreen button**.
-   - (Nếu có) tick **SharedArrayBuffer support** — *không bắt buộc*, để trống cũng được.
-6. **Visibility & access:** chọn **Draft** (chỉ mình bạn thấy) hoặc **Restricted**.
-7. Bấm **Save & view page**.
+   - Tick **Automatically start on page load** — *không* tick (để người chơi bấm "Run game", trình duyệt mới cho bật micro).
+5. **Visibility & access:** **Draft** (chỉ mình bạn) hoặc **Restricted**, rồi **Save & view page**.
 
-## Bước 3 — Thử trên từng trình duyệt
+## Bước 3 — Thử
 
-Thử lần lượt trên **Chrome**, **Edge**, **Firefox**. Đeo tai nghe để micro không bắt tiếng loa.
+**Máy tính (Chrome/Edge):** Run game → chọn kiểu nhận diện → **BẮT ĐẦU** → cho phép micro → giữ **chuột phải**, đọc "hỏa cầu".
 
-1. Bấm **Run game**. Dòng chữ nhỏ dưới chữ "Voice Lab" cho biết: trong iframe, HTTPS, chính sách micro… Nếu thấy **"Chính sách micro: BỊ CHẶN"** → ghi lại, đó là itch.io chặn micro.
-2. Bấm **Cho phép micro** → trình duyệt hỏi quyền → **Allow**. Nói thử, thanh xanh phải nhảy.
-3. Bấm **Tải model Vosk** → chờ thanh tiến trình chạy hết và hiện "Model sẵn sàng".
-4. Click vào khung 3D để khóa chuột. Dùng WASD đi lại.
-5. Tick **"Luyện theo câu mẫu"** (mục 3) để được chấm điểm. **Giữ chuột phải** (hoặc phím V), đọc câu hiện trên màn hình ("Hãy đọc: …"); khi quả cầu trên tay đổi màu thì **thả chuột**. Làm khoảng **50 lần** (mỗi câu ~3 lần).
-   - Nếu lỡ nói nhầm/ho/vấp → bấm **"Bỏ lần vừa rồi"**.
-   - Thử thêm vài lần **khi đang khóa chuột** (đã click vào khung 3D) để chắc chắn micro và khóa chuột chạy cùng lúc.
-6. (Chrome/Edge) Chọn **Web Speech API** rồi làm thêm ~30 lần để so sánh.
-7. Bấm **Sao chép kết quả** và dán vào chat cho Claude, kèm tên trình duyệt.
+**Điện thoại (Android Chrome khuyên dùng):** mở trang itch.io → bấm nút **toàn màn hình** của itch → xoay ngang → **BẮT ĐẦU**.
+- "Của Google" nhẹ và nhanh trên điện thoại (cần mạng). "Chạy trong máy" tải 34MB và nặng hơn.
+- iPhone (Safari): giọng nói có thể không chạy; vẫn chơi được bằng nút 1–5.
 
-## Ghi lại
-
-| Trình duyệt | Micro chạy trong iframe? | Khóa chuột + micro cùng lúc? | Tỉ lệ đúng (Vosk) | Độ trễ TB / p95 (Vosk) | Ghi chú |
-|---|---|---|---|---|---|
-| Chrome | | | | | |
-| Edge | | | | | |
-| Firefox | | | | | |
-
-**Tiêu chí qua Giai đoạn 0:** độ trễ TB < 500ms, p95 < 800ms, tỉ lệ đúng > 90%, micro và khóa chuột chạy cùng lúc.
+Ghi lại cho Claude: máy / trình duyệt, micro có chạy trong khung itch không, giọng nói có nhận ra không, game có giật không.
 
 ## Thử trên máy (không cần itch.io)
 
 ```
-pnpm voice-lab
+pnpm dev          # bản chơi, http://localhost:5173
+pnpm voice-lab    # trang đo giọng nói, http://localhost:5174
 ```
 
-Mở http://localhost:5174 trên trình duyệt.
+Thử bằng điện thoại cùng mạng Wi-Fi: khi chạy `pnpm dev`, dòng `Network:` hiện địa chỉ dạng `http://192.168.x.x:5173` — mở trên điện thoại. *Lưu ý:* qua địa chỉ này (không phải https) trình duyệt điện thoại **chặn micro**, nên chỉ thử được điều khiển cảm ứng; giọng nói trên điện thoại phải thử qua itch.io.

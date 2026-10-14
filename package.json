@@ -6,7 +6,9 @@
     "dev": "pnpm --filter @game/client dev",
     "voice-lab": "pnpm --filter @game/voice-lab dev",
     "voice:model": "node tools/voice-lab/scripts/prepare-model.mjs",
-    "build:itch": "pnpm --filter @game/voice-lab build && node scripts/zip-dist.mjs tools/voice-lab/dist release/voice-lab-itch.zip",
+    "build:itch": "pnpm voice:model && pnpm --filter @game/client build && node scripts/zip-dist.mjs client/dist release/game-itch.zip",
+    "build:itch-lab": "pnpm voice:model && pnpm --filter @game/voice-lab build && node scripts/zip-dist.mjs tools/voice-lab/dist release/voice-lab-itch.zip",
+    "preview:itch": "pnpm --filter @game/client exec vite preview",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test"
   },

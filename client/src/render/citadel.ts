@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import { CITADEL } from '@game/shared';
 import { Torches } from './torches.ts';
 import { dirtRoadTexture, earthBrickTexture, flagstoneTexture, glowTexture, grassTexture, stoneBlockTexture } from './textures.ts';
@@ -87,7 +87,8 @@ export interface Citadel {
   update(dt: number, time: number): void;
 }
 
-export function buildCitadel(scene: THREE.Scene): Citadel {
+/** @param lowQuality phones: thinner forest, fewer real torch lights */
+export function buildCitadel(scene: THREE.Scene, lowQuality = false): Citadel {
   const root = new THREE.Group();
   scene.add(root);
   const torches = new Torches(scene);
@@ -255,7 +256,7 @@ export function buildCitadel(scene: THREE.Scene): Citadel {
 
     for (const z of [GATEHOUSE_DEPTH / 2 + 0.45, -GATEHOUSE_DEPTH / 2 - 0.45]) {
       const facing = z > 0 ? a : a + Math.PI;
-      torches.add(gateLocal(a, -4.7, z, 5), 'wall', { facing, light: true });
+      torches.add(gateLocal(a, -4.7, z, 5), 'wall', { facing, light: !lowQuality });
       torches.add(gateLocal(a, 4.7, z, 5), 'wall', { facing });
     }
 
@@ -349,7 +350,7 @@ export function buildCitadel(scene: THREE.Scene): Citadel {
   }
   for (const a of BRAZIER_ANGLES) torches.add(polar(a, BRAZIER_RADIUS, 1.5), 'brazier', { light: true });
 
-  const forest = buildForest();
+  const forest = buildForest(7, lowQuality ? 0.45 : 1);
   root.add(forest.group);
 
   // Batch everything that never moves (keeps draw calls low on integrated GPUs).

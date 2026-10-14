@@ -3,12 +3,15 @@
 // Player resources and the spellcasting state machine. Pure logic (no DOM, no
 // rendering) so it can be unit-tested and later run on the server.
 //
-//   idle ──press──▶ channeling ──recognized──▶ fired            (autoCast: true, current)
+//   idle ──press──▶ channeling ──recognized──▶ fired, keep channeling   (autoCast: true, current)
+//                     │   ▲__________________________│  (say the next spell while still holding)
 //                     │                     └─▶ charged ──release──▶ fired   (autoCast: false)
 //                     │  mana drains            stamina drains (if staminaEnabled)
-//                     │  mana hits 0 → fizzle   stamina hits 0 → fizzle (exhausted)
-//                     └─release──▶ resolving ──recognized──▶ fired
-//                        (short tap → cancelled)  └─no match / timeout → fizzle (misheard)
+//                     │  mana hits 0 → fizzle (or a quiet channel-end if something was already cast)
+//                     ├─release after ≥1 cast ──▶ idle (channel-end)
+//                     └─release before any cast ──▶ resolving ──recognized──▶ fired
+//                        (short tap → cancelled)    └─no match / timeout → fizzle (misheard)
+//   Stamina (separate): sprinting drains it, each jump costs a chunk.
 
 /** CASTING with literal types widened, so tests can override single values. */
 export type CastingConfig = { [K in keyof typeof CASTING]: (typeof CASTING)[K] extends boolean ? boolean : number };
@@ -23,9 +26,12 @@ export type CastEvent =
   | { type: 'awaiting-result' }
   | { type: 'fired'; commandId: string; empowered: boolean }
   | { type: 'fizzle'; reason: FizzleReason }
-  | { type: 'tap-cancelled' };
+  | { type: 'tap-cancelled' }
+  /** Channel ended after at least one successful cast (button released or mana ran out). */
+  | { type: 'channel-end'; reason: 'released' | 'no-mana' }
+  | { type: 'jump-refused' };
 
-export type ReleaseResult = 'fired' | 'awaiting' | 'tap' | 'none';
+export type ReleaseResult = 'fired' | 'awaiting' | 'tap' | 'ended' | 'none';
 
 export class PlayerState {
   readonly maxHp = PLAYER.maxHp;
@@ -40,6 +46,8 @@ export class PlayerState {
   charged: { commandId: string; empowered: boolean } | null = null;
   /** Seconds since the current channel started. */
   channelTime = 0;
+  /** Spells cast during the current channel (auto-cast chains). */
+  castsThisChannel = 0;
   sprinting = false;
 
   private sprintLocked = false;
@@ -88,7 +96,20 @@ export class PlayerState {
     }
     this.phase = 'channeling';
     this.channelTime = 0;
+    this.castsThisChannel = 0;
     this.emit({ type: 'channel-start' });
+    return true;
+  }
+
+  /** Space pressed: spends stamina; returns false (no jump) if there is not enough. */
+  tryJump(): boolean {
+    if (!this.cfg.staminaEnabled) return true;
+    if (this.stamina < this.cfg.staminaJumpCost) {
+      this.emit({ type: 'jump-refused' });
+      return false;
+    }
+    this.stamina -= this.cfg.staminaJumpCost;
+    this.staminaRegenWait = this.cfg.staminaRegenDelaySec;
     return true;
   }
 
@@ -97,9 +118,13 @@ export class PlayerState {
     if (this.phase !== 'channeling' && this.phase !== 'resolving') return false;
     const empowered = this.empowerWindowOpen;
     this.manaRegenWait = this.cfg.manaRegenDelaySec;
-    if (this.phase === 'resolving' || this.cfg.autoCast) {
-      // Auto-cast mode, or the button was already released: cast right away.
+    if (this.phase === 'resolving') {
+      // The button was already released: cast right away and finish.
       this.phase = 'idle';
+      this.emit({ type: 'fired', commandId, empowered });
+    } else if (this.cfg.autoCast) {
+      // Cast right away; the channel goes on while the button is held (mana keeps draining).
+      this.castsThisChannel++;
       this.emit({ type: 'fired', commandId, empowered });
     } else {
       this.phase = 'charged';
@@ -121,6 +146,12 @@ export class PlayerState {
     }
     if (this.phase === 'channeling') {
       this.manaRegenWait = this.cfg.manaRegenDelaySec;
+      if (this.castsThisChannel > 0) {
+        // Already cast something this channel: just stop, nothing pending.
+        this.phase = 'idle';
+        this.emit({ type: 'channel-end', reason: 'released' });
+        return 'ended';
+      }
       if (this.channelTime < this.cfg.tapCancelSec) {
         this.phase = 'idle';
         this.emit({ type: 'tap-cancelled' });
@@ -166,7 +197,8 @@ export class PlayerState {
         this.mana = 0;
         this.phase = 'idle';
         this.manaRegenWait = this.cfg.manaRegenDelaySec;
-        this.emit({ type: 'fizzle', reason: 'no-mana' });
+        if (this.castsThisChannel > 0) this.emit({ type: 'channel-end', reason: 'no-mana' });
+        else this.emit({ type: 'fizzle', reason: 'no-mana' });
       }
     } else if (this.phase === 'resolving') {
       this.resolveTime += dt;
@@ -201,7 +233,7 @@ export class PlayerState {
       else this.mana = Math.min(this.maxMana, this.mana + this.cfg.manaRegenPerSec * dt);
     }
     if (staminaDrain === 0) {
-      if (this.staminaRegenWait > 0) this.staminaRegenWait -= dt;
+      if (this.staminaRegenWait > 0) this.staminaRegenWait -= dt; // also set by jumps
       else this.stamina = Math.min(this.maxStamina, this.stamina + this.cfg.staminaRegenPerSec * dt);
     }
     if (this.sprintLocked && this.stamina >= this.cfg.staminaSprintUnlock) this.sprintLocked = false;

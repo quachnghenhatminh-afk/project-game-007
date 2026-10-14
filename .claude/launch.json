@@ -12,6 +12,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev"],
       "port": 5173
+    },
+    {
+      "name": "game-build",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["preview:itch"],
+      "port": 4173
     }
   ]
 }

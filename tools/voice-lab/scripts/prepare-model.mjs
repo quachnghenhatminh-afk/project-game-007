@@ -1,6 +1,6 @@
 // Downloads the official Vosk Vietnamese small model (zip) and repacks it as
 // the .tar.gz that vosk-browser expects. Output goes to the voice-lab public dir.
-import { existsSync, mkdirSync, createWriteStream, statSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, createWriteStream, statSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -17,8 +17,16 @@ const outDir = join(labDir, 'public', 'voice');
 const outPath = join(outDir, `${MODEL}.tar.gz`);
 
 const vocabPath = join(labDir, 'model-vocab.txt');
+// The playable client (itch.io build) ships the same model.
+const clientVoiceDir = resolve(labDir, '..', '..', 'client', 'public', 'voice');
+const clientOutPath = join(clientVoiceDir, `${MODEL}.tar.gz`);
 
 if (existsSync(outPath) && existsSync(vocabPath)) {
+  if (!existsSync(clientOutPath)) {
+    mkdirSync(clientVoiceDir, { recursive: true });
+    copyFileSync(outPath, clientOutPath);
+    console.log(`Copied model to ${clientOutPath}`);
+  }
   console.log(`Model already prepared: ${outPath}`);
   process.exit(0);
 }
@@ -41,6 +49,9 @@ if (!existsSync(join(cacheDir, MODEL))) throw new Error(`Expected folder ${MODEL
 console.log('Repacking as .tar.gz ...');
 execFileSync('tar', ['-czf', outPath, '-C', cacheDir, MODEL], { stdio: 'inherit' });
 console.log(`Done: ${outPath} (${(statSync(outPath).size / 1e6).toFixed(1)} MB)`);
+mkdirSync(clientVoiceDir, { recursive: true });
+copyFileSync(outPath, clientOutPath);
+console.log(`Copied model to ${clientOutPath}`);
 
 // The model has no words.txt; its word list is embedded as an OpenFst symbol
 // table inside Gr.fst. Dump it so tests can verify every command word is known.

@@ -54,14 +54,17 @@ Lặp lại ~10 đợt. Đợt 5 và đợt 10 có trùm. Lõi bị phá = thua.
 
 Người chơi **tự do đọc bất kỳ câu chú nào** (không cần theo chỉ dẫn).
 
-**Bản hiện tại (16/10/2026) — tự bắn khi đọc đúng:**
+**Bản hiện tại (16/10/2026) — đọc đúng là tự bắn, giữ tiếp để niệm liên hoàn:**
 
-1. **Giữ chuột phải** → hai tay tụ một quả cầu sáng, micro bắt đầu nghe, **mana tụt liên tục** (~25/giây, hết thanh trong ~4 giây).
-2. Thanh mana có **vùng PERFECT = nửa trên của thanh** (mốc tròn ở 50%). Câu chú được nhận ra khi mana **còn trong vùng PERFECT** → phép **cường hóa ✦** (to hơn 50%, vòng sóng vàng khi nổ).
-3. Câu chú được nhận ra → **phép tự bắn ngay** tới vòng ngắm (không cần thả chuột). Mana ngừng tụt và tự hồi (**đang để 40/giây cho test**).
-4. **Tạo khiên** (phím 5): khiên bong bóng bao quanh người chơi, đi theo người chơi, **tồn tại 2 giây** rồi nhấp nháy và biến mất. Cường hóa → khiên to hơn 50%.
+1. **Giữ chuột phải** (điện thoại: giữ nút **NIỆM**) → hai tay tụ phép, micro nghe, **mana tụt liên tục** (~25/giây, hết thanh trong ~4 giây).
+2. Thanh mana có **vùng PERFECT từ 30% đến 100%** (mốc tròn ở 30%). Câu chú được nhận ra khi mana **còn trong vùng** → phép **cường hóa ✦** (to hơn 50%, vòng sóng vàng).
+3. Câu chú được nhận ra → **phép tự bắn ngay** tới vòng ngắm. **Nếu vẫn giữ chuột, mana tiếp tục tụt** và có thể đọc tiếp câu khác (niệm liên hoàn). Thả chuột → dừng, mana tự hồi (**đang để 40/giây cho test**).
+4. **Tạo khiên** (phím 5): khiên bong bóng bao quanh người chơi, **tồn tại 2 giây**. Cường hóa → khiên to hơn 50%.
 5. Phụ đề hiện **2 giây** cho biết người chơi vừa đọc gì và có khớp câu chú nào không.
-6. Thanh **thể lực hiện nhưng tạm chưa dùng** (`CASTING.staminaEnabled = false`).
+6. **Thể lực:** tụt khi **chạy** (~15/giây) và **mỗi lần nhảy** (14). Không đủ thể lực thì không nhảy được; về 0 thì khóa chạy tới khi hồi lại 25. Niệm phép không tốn thể lực.
+7. **Chi phí mana** = lượng mana tụt trong lúc giữ. Lưu ý cân bằng: giữ chuột rồi bấm phím nhanh thì gần như không tốn mana — sẽ thêm chi phí riêng mỗi câu (`costMana`) khi làm Giai đoạn 1.
+
+**Điều khiển điện thoại:** nửa trái kéo để đi (kéo hết cỡ = chạy), nửa phải vuốt để nhìn, nút **NIỆM** (giữ), nút **nhảy**, 5 nút câu chú (chạm khi đang giữ NIỆM, hoặc chạm riêng để niệm ngay). Trên điện thoại: thanh mana ở trên cùng, đồ họa giảm (không bóng đổ, rừng thưa hơn).
 
 **Bản trước — giữ phép trên tay** (vẫn giữ trong code, bật lại bằng `CASTING.autoCast = false` + `staminaEnabled = true`): phép nhận ra thì nằm trên tay, thể lực tụt ~20/giây, thả chuột mới bắn; thể lực về 0 thì phép tan biến.
 

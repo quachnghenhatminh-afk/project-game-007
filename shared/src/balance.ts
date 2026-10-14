@@ -25,16 +25,17 @@ export const PLAYER = {
 /** Spellcasting/stamina tuning. See shared/src/playerState.ts for the rules. */
 export const CASTING = {
   /**
-   * true: a recognized spell fires immediately at the crosshair.
+   * true: a recognized spell fires immediately at the crosshair; while the button stays
+   *       held the channel continues (mana keeps draining) and another spell can be said.
    * false: it stays in the hands (draining stamina) until the button is released.
    */
   autoCast: true,
-  /** Stamina drain/regen on or off (bar is shown but unused while false). */
-  staminaEnabled: false,
-  /** Mana lost per second while channeling (right mouse held, spell not recognized yet): full bar ≈ 4s. */
+  /** Stamina drain/regen on or off. */
+  staminaEnabled: true,
+  /** Mana lost per second while channeling (cast button held): full bar ≈ 4s. */
   manaDrainPerSec: 25,
-  /** Recognized while mana ≥ this fraction of max → empowered spell ("perfect" zone = top 50% of the bar). */
-  empowerThreshold: 0.5,
+  /** Recognized while mana ≥ this fraction of max → empowered spell ("perfect" zone = 30%…100% of the bar). */
+  empowerThreshold: 0.3,
   /** Empowered spells are this much bigger. */
   empowerScale: 1.5,
   /** Cannot start channeling below this much mana. */
@@ -46,6 +47,8 @@ export const CASTING = {
   /** Stamina lost per second while holding a charged spell: full bar ≈ 5s. */
   staminaHoldDrainPerSec: 20,
   staminaSprintDrainPerSec: 15,
+  /** Stamina spent per jump; cannot jump with less than this. */
+  staminaJumpCost: 14,
   staminaRegenPerSec: 22,
   staminaRegenDelaySec: 0.8,
   /** After stamina hits 0, sprinting stays locked until stamina is back to this. */

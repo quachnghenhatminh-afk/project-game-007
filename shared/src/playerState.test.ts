@@ -196,59 +196,96 @@ describe('hold-to-cast mode (autoCast off, stamina on)', () => {
   });
 });
 
-describe('auto-cast mode (current: spell fires as soon as it is recognized)', () => {
-  it('A1. recognized in the perfect zone → fires immediately, empowered', () => {
+describe('auto-cast mode (current rules)', () => {
+  it('A1. recognized in the perfect zone → fires at once, empowered; channel keeps going while held', () => {
     const p = new PlayerState();
     p.startChannel();
-    run(p, 0.8); // 100 → 80%, above the 50% mark
+    run(p, 0.8);
     p.recognize('fireball');
     expect(p.drainEvents()).toContainEqual({ type: 'fired', commandId: 'fireball', empowered: true });
-    expect(p.phase).toBe('idle');
-    expect(p.release()).toBe('none'); // releasing the button afterwards does nothing
+    expect(p.phase).toBe('channeling');
+    const mana = p.mana;
+    run(p, 0.4);
+    expect(p.mana).toBeLessThan(mana); // still holding → mana keeps draining
   });
 
-  it('A2. recognized after mana passed the 50% mark → normal spell', () => {
+  it('A2. chain: a second spell while still holding; releasing then ends quietly', () => {
     const p = new PlayerState();
     p.startChannel();
-    run(p, 2.4); // 100 - 60 = 40%
+    run(p, 0.5);
+    p.recognize('fireball');
+    run(p, 0.8);
     p.recognize('frost');
-    expect(p.drainEvents()).toContainEqual({ type: 'fired', commandId: 'frost', empowered: false });
+    expect(p.castsThisChannel).toBe(2);
+    p.drainEvents();
+    expect(p.release()).toBe('ended');
+    expect(p.drainEvents()).toEqual([{ type: 'channel-end', reason: 'released' }]);
+    expect(p.phase).toBe('idle');
   });
 
-  it('A3. stamina is not used: unchanged by casting or sprinting, sprint always allowed', () => {
+  it('A3. perfect zone is 30%…100% of the bar', () => {
+    const p = new PlayerState();
+    expect(p.empowerMark).toBe(0.3);
+    p.startChannel();
+    run(p, 2.6); // 100 - 65 = 35% → still perfect
+    expect(p.empowerWindowOpen).toBe(true);
+    run(p, 0.4); // 25%
+    p.recognize('lightning');
+    expect(p.drainEvents()).toContainEqual({ type: 'fired', commandId: 'lightning', empowered: false });
+  });
+
+  it('A4. mana runs out after a successful cast → quiet channel-end, no fizzle', () => {
     const p = new PlayerState();
     p.startChannel();
-    run(p, 0.5, true);
-    p.recognize('meteor');
-    run(p, 10, true);
-    expect(p.stamina).toBe(p.maxStamina);
-    expect(p.canSprint).toBe(true);
+    run(p, 0.5);
+    p.recognize('fireball');
+    p.drainEvents();
+    const events = run(p, 4);
+    expect(events).toContainEqual({ type: 'channel-end', reason: 'no-mana' });
+    expect(types(events)).not.toContain('fizzle');
   });
 
-  it('A4. released before recognition, then recognized → fires', () => {
+  it('A5. nothing recognized and mana runs out → fizzle (no-mana)', () => {
+    const p = new PlayerState();
+    p.startChannel();
+    expect(run(p, 5)).toContainEqual({ type: 'fizzle', reason: 'no-mana' });
+  });
+
+  it('A6. released before any recognition, then recognized → fires', () => {
     const p = new PlayerState();
     p.startChannel();
     run(p, 0.5);
     expect(p.release()).toBe('awaiting');
     p.recognize('mage-shield');
     expect(p.drainEvents()).toContainEqual({ type: 'fired', commandId: 'mage-shield', empowered: true });
+    expect(p.phase).toBe('idle');
   });
 
-  it('A5. mana refills quickly after a cast (testing regen rate)', () => {
+  it('A7. sprinting drains stamina; casting does not', () => {
     const p = new PlayerState();
     p.startChannel();
-    run(p, 2); // 50 mana left
-    p.recognize('fireball');
-    run(p, 1.5);
-    expect(p.mana).toBe(p.maxMana);
+    run(p, 1);
+    expect(p.stamina).toBe(p.maxStamina);
+    run(p, 2, true);
+    expect(p.stamina).toBeLessThan(p.maxStamina - 25);
   });
 
-  it('A6. the perfect zone covers the top half of the mana bar', () => {
+  it('A8. each jump costs stamina; jumping non-stop runs out and is refused', () => {
     const p = new PlayerState();
-    expect(p.empowerMark).toBe(CASTING.empowerThreshold);
-    p.mana = 51;
-    expect(p.empowerWindowOpen).toBe(true);
-    p.mana = 49;
-    expect(p.empowerWindowOpen).toBe(false);
+    let jumps = 0;
+    for (let i = 0; i < 20; i++) {
+      if (p.tryJump()) jumps++;
+      run(p, 0.25); // jump again as soon as possible
+    }
+    expect(jumps).toBeLessThan(20);
+    expect(p.drainEvents()).toEqual([]); // drained inside run()
+    expect(p.tryJump()).toBe(p.stamina >= CASTING.staminaJumpCost);
+  });
+
+  it('A9. stamina refills after resting', () => {
+    const p = new PlayerState();
+    for (let i = 0; i < 5; i++) p.tryJump();
+    run(p, 6);
+    expect(p.stamina).toBe(p.maxStamina);
   });
 });

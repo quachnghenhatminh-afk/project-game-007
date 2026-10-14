@@ -22,13 +22,14 @@ const CSS = `
 .hud-mana-wrap { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(460px, 62%); }
 .hud-mana-title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;
   font: 800 14px system-ui; letter-spacing: 2px; color: #bfe3ff; }
-.hud-bar.mana { height: 26px; border: 2px solid rgba(140, 200, 255, 0.85);
+.hud-bar.mana { height: 28px; border-radius: 999px; border: 2px solid rgba(140, 200, 255, 0.85);
   box-shadow: 0 0 12px rgba(80, 160, 255, 0.45), inset 0 0 8px rgba(0,0,0,0.6); }
 .hud-bar.mana .fill { background: linear-gradient(#8ad4ff, #2f6fe0 55%, #1d3f9a); }
-.hud-bar.mana .label { font: 800 14px system-ui; }
+.hud-bar.mana .label { font: 800 14px system-ui; left: 16px; right: 18px; }
+.hud-bar.mana .fill { border-radius: 999px; }
 .hud-bar.mana.casting { animation: hud-glow 0.6s infinite alternate; }
 @keyframes hud-glow { to { box-shadow: 0 0 22px rgba(120, 190, 255, 0.95), inset 0 0 8px rgba(0,0,0,0.6); } }
-.hud-zone { position: absolute; top: 0; bottom: 0; right: 0; border-left: 2px dashed rgba(255, 215, 90, 0.9);
+.hud-zone { position: absolute; top: 0; bottom: 0; right: 0; border-radius: 0 999px 999px 0; border-left: 2px dashed rgba(255, 215, 90, 0.9);
   background: repeating-linear-gradient(135deg, rgba(255,215,90,0.16) 0 8px, rgba(255,215,90,0.06) 8px 16px); }
 .hud-zone .tag { position: absolute; right: 6px; top: -17px; font: 800 10px system-ui; letter-spacing: 1px; color: #ffd75a; }
 .hud-zone.open { background: repeating-linear-gradient(135deg, rgba(255,215,90,0.38) 0 8px, rgba(255,215,90,0.18) 8px 16px);
@@ -42,9 +43,9 @@ const CSS = `
 
 /* --- HP + stamina: secondary, bottom-left -------------------------------- */
 .hud-side { position: absolute; left: 18px; bottom: 22px; width: 230px; }
-.hud-bar.hp { height: 16px; margin-top: 4px; border: 1px solid rgba(255, 140, 140, 0.6); font: 700 11px system-ui; }
+.hud-bar.hp { height: 16px; border-radius: 999px; margin-top: 4px; border: 1px solid rgba(255, 140, 140, 0.6); font: 700 11px system-ui; }
 .hud-bar.hp .fill { background: linear-gradient(#ff7a7a, #b5222b); }
-.hud-bar.stamina { height: 7px; margin-top: 6px; border-radius: 4px; border: 1px solid rgba(200, 240, 120, 0.4); }
+.hud-bar.stamina { height: 8px; margin-top: 6px; border-radius: 999px; border: 1px solid rgba(200, 240, 120, 0.4); }
 .hud-bar.stamina .fill { background: linear-gradient(#c8f07a, #5f9e2a); }
 .hud-bar.stamina.unused { opacity: 0.45; }
 .hud-bar.stamina.low .fill { background: linear-gradient(#ffb347, #c0392b); animation: hud-pulse 0.5s infinite alternate; }
@@ -74,10 +75,17 @@ const CSS = `
 .hud-subtitle .ok { color: #7dff9a; font-weight: 700; }
 .hud-subtitle .no { color: #ff8a8a; }
 
+/* Phones (body.touch): mana goes top-center, clear of the touch buttons; HP/stamina stay bottom-left. */
+.touch .hud-mana-wrap { top: 8px; bottom: auto; width: min(380px, 52%); }
+.touch .hud-side { width: 180px; }
+.touch .hud-subtitle { bottom: 120px; font-size: 14px; }
+.touch .hud-listen .live { font-size: 18px; }
+.touch .hud-flash { font-size: 22px; top: 26%; }
+
 /* Narrow view: HP/stamina move up so they never overlap the centered mana bar (keep last: overrides above). */
 @container (max-width: 1000px) {
-  .hud-side { bottom: 92px; }
-  .hud-subtitle { bottom: 160px; }
+  :not(.touch) > .hud .hud-side { bottom: 92px; }
+  :not(.touch) > .hud .hud-subtitle { bottom: 160px; }
 }
 `;
 
