@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Game 007</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #111; font-family: system-ui, sans-serif; }
+      #view { position: fixed; inset: 0; }
+      #overlay {
+        position: fixed; inset: 0; display: grid; place-items: center; cursor: pointer;
+        background: rgba(0, 0, 0, 0.45); color: #fff; font-size: 22px; text-align: center; line-height: 1.6;
+      }
+      #overlay.hidden { display: none; }
+      #crosshair {
+        position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px;
+        border-radius: 50%; background: #fff; box-shadow: 0 0 2px #000; pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="view"></div>
+    <div id="crosshair"></div>
+    <div id="overlay">
+      <div><b>Click để vào thành</b><br />WASD di chuyển · Shift chạy · Space nhảy · Esc thoát chuột</div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voice Lab — Project Game 007</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <section id="stage">
+        <div id="view"></div>
+        <div id="crosshair"></div>
+        <div id="lock-hint">Click vào khung 3D để khóa chuột · WASD đi · Giữ <kbd>V</kbd> để niệm</div>
+        <div id="hud-target"></div>
+        <div id="hud-rec" class="hidden">● Đang nghe…</div>
+        <div id="hud-result"></div>
+      </section>
+
+      <aside id="panel">
+        <h1>Voice Lab</h1>
+        <div id="diag" class="muted small"></div>
+
+        <div class="card">
+          <h2>1. Micro</h2>
+          <button id="btn-mic">Cho phép micro</button>
+          <select id="mic-device" class="hidden"></select>
+          <div class="meter"><div id="mic-level"></div></div>
+          <div id="mic-status" class="small muted">Chưa bật micro.</div>
+        </div>
+
+        <div class="card">
+          <h2>2. Bộ nhận diện</h2>
+          <label><input type="radio" name="engine" value="vosk" checked /> Vosk (chạy trong máy)</label>
+          <label><input type="radio" name="engine" value="webspeech" /> Web Speech API (Chrome/Edge)</label>
+          <div id="vosk-box">
+            <button id="btn-model">Tải model Vosk (~34MB)</button>
+            <div class="progress"><div id="model-bar"></div></div>
+            <div id="model-status" class="small muted">Chưa tải model.</div>
+            <label class="small"><input type="checkbox" id="opt-grammar" checked /> Dùng grammar giới hạn (khuyến nghị)</label>
+            <a href="#" id="btn-clear-cache" class="small">Xóa cache model</a>
+          </div>
+          <div id="webspeech-status" class="small muted"></div>
+        </div>
+
+        <div class="card">
+          <h2>3. Kiểm tra</h2>
+          <label class="small">Bộ câu lệnh
+            <select id="opt-set">
+              <option value="all">Tất cả (18 câu)</option>
+              <option value="mage">Pháp Sư (4 câu)</option>
+              <option value="mage+common">Pháp Sư + Chung (6 câu)</option>
+            </select>
+          </label>
+          <label class="small"><input type="checkbox" id="opt-free" /> Nói tự do (không chấm điểm)</label>
+          <div id="target-box">Hãy hô: <b id="target-text">—</b> <button id="btn-skip" class="link">Đổi câu</button></div>
+          <div id="last" class="small"></div>
+          <button id="btn-undo" class="link">Bỏ lần vừa rồi (nói nhầm)</button>
+        </div>
+
+        <div class="card">
+          <h2>4. Thống kê</h2>
+          <div id="summary"></div>
+          <details>
+            <summary class="small">Chi tiết từng câu lệnh</summary>
+            <div id="per-command"></div>
+          </details>
+        </div>
+
+        <div class="card">
+          <h2>5. Gửi kết quả</h2>
+          <p class="small muted">Bấm "Sao chép" rồi dán kết quả vào chat cho Claude.</p>
+          <button id="btn-copy">Sao chép kết quả</button>
+          <button id="btn-reset" class="danger">Xóa thống kê</button>
+          <textarea id="export" readonly rows="4"></textarea>
+        </div>
+      </aside>
+    </div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "name": "project-game-007",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @game/client dev",
+    "voice-lab": "pnpm --filter @game/voice-lab dev",
+    "voice:model": "node tools/voice-lab/scripts/prepare-model.mjs",
+    "build:itch": "pnpm --filter @game/voice-lab build && node scripts/zip-dist.mjs tools/voice-lab/dist release/voice-lab-itch.zip",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  }
+}

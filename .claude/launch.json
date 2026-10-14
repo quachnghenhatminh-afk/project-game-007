@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "voice-lab",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["voice-lab"],
+      "port": 5174
+    },
+    {
+      "name": "client",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev"],
+      "port": 5173
+    }
+  ]
+}
