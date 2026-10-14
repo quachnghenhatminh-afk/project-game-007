@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { COMMANDS } from './commands.ts';
-import { buildVoskGrammar, canonicalSyllable, matchCommand } from './voiceMatch.ts';
+import { buildVoskGrammar, canonicalSyllable, compareToPhrase, matchCommand } from './voiceMatch.ts';
 
 describe('canonicalSyllable', () => {
   it('treats old and new tone placement as equal', () => {
@@ -31,6 +31,21 @@ describe('matchCommand', () => {
   });
   it('picks the earliest phrase', () => {
     expect(matchCommand('sấm sét hỏa cầu', COMMANDS)?.command.id).toBe('lightning');
+  });
+});
+
+describe('compareToPhrase', () => {
+  it('marks each syllable heard or missed', () => {
+    expect(compareToPhrase('quá đài', 'quá tải')).toEqual([
+      { word: 'quá', ok: true },
+      { word: 'tải', ok: false },
+    ]);
+  });
+  it('accepts old-style tone placement', () => {
+    expect(compareToPhrase('Hoả cầu!', 'hỏa cầu').every((s) => s.ok)).toBe(true);
+  });
+  it('marks everything missed for empty input', () => {
+    expect(compareToPhrase('', 'sấm sét').some((s) => s.ok)).toBe(false);
   });
 });
 

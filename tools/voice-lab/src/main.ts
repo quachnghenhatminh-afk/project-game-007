@@ -3,6 +3,7 @@ import {
   COMMANDS,
   buildVoskGrammar,
   commandsForClass,
+  compareToPhrase,
   getCommand,
   matchCommand,
   type VoiceCommand,
@@ -38,7 +39,7 @@ world.onUpdate((dt, time) => {
   effects.update(dt);
 });
 world.start();
-if (import.meta.env.DEV) Object.assign(window, { __world: world }); // debug hook for automated checks
+if (import.meta.env.DEV) Object.assign(window, { __world: world, __showHeard: showHeard }); // debug hooks for automated checks
 
 // ---------------------------------------------------------------------------
 // State
@@ -130,6 +131,7 @@ let voskModel: Awaited<ReturnType<typeof loadVoskModel>> | null = null;
 function rebuildVosk(): void {
   if (!voskModel || !mic) return;
   vosk = new VoskEngine(voskModel, mic.sampleRate, grammarEnabled() ? grammarFor() : null);
+  vosk.onPartial = showLive;
 }
 
 $('btn-model').addEventListener('click', async () => {
@@ -234,6 +236,8 @@ window.addEventListener('keydown', (e) => {
   holdStart = performance.now();
   aim = effects.aimPoint(world.camera); // aim is locked when the key goes down
   effects.showAimRing(aim);
+  $('hud-live').textContent = '';
+  $('hud-heard').classList.remove('show');
   $('hud-rec').classList.remove('hidden');
   if (engineId === 'vosk') {
     vosk!.begin();
@@ -268,6 +272,7 @@ async function release(): Promise<void> {
   busy = false;
 
   if (holdMs < MIN_HOLD_MS && !outcome.text) return;
+  const spokenTarget = target;
 
   const match =
     matchCommand(outcome.text, COMMANDS) ??
@@ -295,6 +300,7 @@ async function release(): Promise<void> {
     effects.fizzle(world.camera);
     flashResult('Niệm hỏng', '#aaaaaa');
   }
+  showHeard(outcome.text, spokenTarget, match?.command ?? null);
   renderLast(attempt, outcome.error);
   renderStats();
   nextTarget();
@@ -311,6 +317,35 @@ function flashResult(text: string, color: string): void {
   el.classList.add('show');
   clearTimeout(flashTimer);
   flashTimer = window.setTimeout(() => el.classList.remove('show'), 900);
+}
+
+/** Live transcript under the crosshair while [V] is held. */
+function showLive(text: string): void {
+  if (holding) $('hud-live').textContent = text;
+}
+webSpeech.onPartial = showLive;
+
+/**
+ * Pronunciation feedback after release: the expected phrase with each syllable
+ * green (heard) or red (missed/wrong tone), plus what the recognizer heard.
+ */
+let heardTimer = 0;
+function showHeard(heard: string, expected: VoiceCommand | null, matched: VoiceCommand | null): void {
+  const phrase = expected?.phrases[0] ?? matched?.phrases[0] ?? null;
+  const syllables = phrase
+    ? compareToPhrase(heard, phrase)
+        .map((s) => `<span class="syl ${s.ok ? 'ok' : 'miss'}">${escapeHtml(s.word)}</span>`)
+        .join('')
+    : '<span class="syl miss">?</span>';
+  const label = expected ? 'Câu cần hô' : matched ? 'Khớp lệnh' : 'Không khớp lệnh nào';
+  const el = $('hud-heard');
+  el.innerHTML = `
+    <div class="row muted">${label}</div>
+    <div>${syllables}</div>
+    <div class="row">Máy nghe được: <b>${escapeHtml(heard || '(không nghe thấy gì)')}</b></div>`;
+  el.classList.add('show');
+  clearTimeout(heardTimer);
+  heardTimer = window.setTimeout(() => el.classList.remove('show'), 2500);
 }
 
 function phraseOf(id: string | null): string {

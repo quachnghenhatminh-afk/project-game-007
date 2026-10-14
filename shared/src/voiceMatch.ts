@@ -73,6 +73,31 @@ function indexOfRun(haystack: string[], needle: string[]): number {
   return -1;
 }
 
+export interface SyllableCheck {
+  /** Syllable of the expected phrase, as written. */
+  word: string;
+  /** True if the recognizer heard this syllable. */
+  ok: boolean;
+}
+
+/**
+ * Per-syllable pronunciation feedback: which syllables of `phrase` appear in
+ * what was heard. Tone-sensitive ("tải" ≠ "đài"), so a wrong tone shows red.
+ */
+export function compareToPhrase(heard: string, phrase: string): SyllableCheck[] {
+  const said = toSyllables(heard);
+  const used = new Array<boolean>(said.length).fill(false);
+  return phrase
+    .split(/\s+/)
+    .filter((w) => w.length > 0)
+    .map((word) => {
+      const canon = canonicalSyllable(word);
+      const i = said.findIndex((s, j) => !used[j] && s === canon);
+      if (i >= 0) used[i] = true;
+      return { word, ok: i >= 0 };
+    });
+}
+
 /** Restricted grammar for Vosk: every phrase (NFC, lowercase) plus "[unk]". */
 export function buildVoskGrammar(commands: readonly VoiceCommand[]): string[] {
   const phrases = new Set<string>();

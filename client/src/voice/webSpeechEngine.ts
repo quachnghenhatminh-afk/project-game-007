@@ -42,6 +42,7 @@ const END_TIMEOUT_MS = 5000;
 
 export class WebSpeechEngine implements VoiceEngine {
   readonly id = 'webspeech' as const;
+  onPartial: (text: string) => void = () => {};
   private rec: SpeechRecognitionLike | null = null;
   private finals: string[][] = [];
   private interim: string[] = [];
@@ -68,6 +69,9 @@ export class WebSpeechEngine implements VoiceEngine {
         for (let j = 0; j < r.length; j++) alts.push(r[j]!.transcript.trim());
         if (r.isFinal) this.finals.push(alts);
         else this.interim = alts;
+      }
+      if (this.rec === rec) {
+        this.onPartial([...this.finals.map((a) => a[0] ?? ''), this.interim[0] ?? ''].join(' ').trim());
       }
     };
     rec.onerror = (e) => {

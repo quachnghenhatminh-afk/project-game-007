@@ -11,6 +11,8 @@ export interface RecognitionOutcome {
 /** Push-to-talk recognizer: begin() on key down, end() on key up. */
 export interface VoiceEngine {
   readonly id: VoiceEngineId;
+  /** Live transcript while the key is held (interim, may change). */
+  onPartial: (text: string) => void;
   begin(): void;
   end(): Promise<RecognitionOutcome>;
 }

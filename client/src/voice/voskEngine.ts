@@ -89,6 +89,7 @@ async function prefetch(url: string, onFraction: (f: number | null) => void): Pr
  */
 export class VoskEngine implements VoiceEngine {
   readonly id = 'vosk' as const;
+  onPartial: (text: string) => void = () => {};
   private recognizer: KaldiRecognizer | null = null;
   private sent = 0;
   private received = 0;
@@ -154,12 +155,16 @@ export class VoskEngine implements VoiceEngine {
       if (msg.event === 'result') {
         const t = msg.result.text.trim();
         if (t) this.texts.push(t);
+        if (this.capturing) this.onPartial(this.texts.join(' '));
       }
       this.received++;
       this.check();
     });
-    rec.on('partialresult', () => {
+    rec.on('partialresult', (msg) => {
       if (rec !== this.recognizer) return;
+      if (this.capturing && msg.event === 'partialresult') {
+        this.onPartial([...this.texts, msg.result.partial].join(' ').trim());
+      }
       this.received++;
       this.check();
     });
