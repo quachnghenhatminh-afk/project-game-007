@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 import { CITADEL } from '@game/shared';
 import { WALL_HALF_THICKNESS, angleToNearestGate, type Collider } from '../render/citadel.ts';
@@ -7,7 +7,7 @@ import { fogDepth } from '../render/environment.ts';
 const EYE_HEIGHT = 1.7;
 const WALK_SPEED = 6;
 const RUN_SPEED = 10;
-const JUMP_SPEED = 7.5;
+const JUMP_SPEED = 8.8; // ≈1.6m jump
 const GRAVITY = 24;
 const PLAYER_RADIUS = 0.45;
 /** Speed multiplier at the very edge of the play area (deep in the fog). */

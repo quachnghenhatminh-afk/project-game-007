@@ -24,17 +24,25 @@ export const PLAYER = {
 
 /** Spellcasting/stamina tuning. See shared/src/playerState.ts for the rules. */
 export const CASTING = {
+  /**
+   * true: a recognized spell fires immediately at the crosshair.
+   * false: it stays in the hands (draining stamina) until the button is released.
+   */
+  autoCast: true,
+  /** Stamina drain/regen on or off (bar is shown but unused while false). */
+  staminaEnabled: false,
   /** Mana lost per second while channeling (right mouse held, spell not recognized yet): full bar ≈ 4s. */
   manaDrainPerSec: 25,
-  /** Recognized while mana ≥ this fraction of max → empowered spell. */
-  empowerThreshold: 0.7,
+  /** Recognized while mana ≥ this fraction of max → empowered spell ("perfect" zone = top 50% of the bar). */
+  empowerThreshold: 0.5,
   /** Empowered spells are this much bigger. */
   empowerScale: 1.5,
   /** Cannot start channeling below this much mana. */
   minManaToChannel: 10,
-  manaRegenPerSec: 15,
+  /** TESTING value (fast refill); tune down for real play. */
+  manaRegenPerSec: 40,
   /** Mana starts refilling this long after draining stops. */
-  manaRegenDelaySec: 0.5,
+  manaRegenDelaySec: 0.2,
   /** Stamina lost per second while holding a charged spell: full bar ≈ 5s. */
   staminaHoldDrainPerSec: 20,
   staminaSprintDrainPerSec: 15,
@@ -48,6 +56,13 @@ export const CASTING = {
   tapCancelSec: 0.15,
   /** After release, how long to wait for the recognizer before giving up. */
   resolveTimeoutSec: 3,
+} as const;
+
+/** Spell-specific numbers. */
+export const SPELLS = {
+  /** "Tạo khiên": bubble around the caster. */
+  shieldDurationSec: 2,
+  shieldRadius: 1.6,
 } as const;
 
 /** Circular citadel layout (meters). Shared so server pathing matches the client scene. */

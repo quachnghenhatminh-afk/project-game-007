@@ -1,4 +1,4 @@
-import type * as THREE from 'three';
+﻿import type * as THREE from 'three';
 import {
   CASTING,
   COMMANDS,
@@ -44,6 +44,9 @@ export interface CastAttempt {
   channelMs: number;
 }
 
+/** Camera height above the feet (matches FpsController). */
+const EYE_HEIGHT = 1.7;
+
 const FIZZLE_TEXT: Record<string, string> = {
   'no-mana': 'Hết mana — phép tan biến',
   misheard: 'Niệm hỏng',
@@ -82,7 +85,7 @@ export class SpellCaster {
     this.channelStart = performance.now();
     this.lastHeard = '';
     if (!this.voice) {
-      this.hud.setListening(true, '(micro chưa bật — bấm phím 1–4)');
+      this.hud.setListening(true, '(chưa bật micro — phím 1–5)');
       return;
     }
     this.hud.setListening(true, '');
@@ -106,7 +109,7 @@ export class SpellCaster {
     }
   }
 
-  /** Fallback keys 1–4: stand in for the voice while the cast button is held. */
+  /** Fallback keys 1–5: stand in for the voice while the cast button is held. */
   hotkey(n: number): void {
     if (this.state.phase !== 'channeling' && this.state.phase !== 'resolving') return;
     const cmd = this.commands.find((c) => c.classId === this.classId && c.hotkey === n);
@@ -142,10 +145,17 @@ export class SpellCaster {
           break;
         case 'fired': {
           this.stopListening();
-          const aim = this.effects.aimPoint(this.camera);
-          this.effects.cast(e.commandId, aim, e.empowered ? CASTING.empowerScale : 1);
+          const scale = e.empowered ? CASTING.empowerScale : 1;
+          if (getCommand(e.commandId)?.selfCast) {
+            const cam = this.camera;
+            this.effects.shield(() => cam.position.clone().setY(cam.position.y - EYE_HEIGHT), scale);
+          } else {
+            this.effects.cast(e.commandId, this.effects.aimPoint(this.camera), scale);
+          }
           this.arms.release(true, spellColor(e.commandId));
           this.hud.setCharged(null);
+          this.hud.flash(`${this.phrase(e.commandId)}${e.empowered ? ' ✦' : ''}`, e.empowered ? '#ffd75a' : '#ffffff');
+          if (e.empowered) this.hud.pulsePerfect();
           break;
         }
         case 'fizzle':

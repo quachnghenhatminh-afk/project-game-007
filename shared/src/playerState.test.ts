@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 import { CASTING } from './balance.ts';
-import { PlayerState, type CastEvent } from './playerState.ts';
+import { PlayerState, type CastEvent, type CastingConfig } from './playerState.ts';
 
 // Scenario simulations for the casting rules. Each test plays out a situation
 // that can happen in a real match, step by step at 60 fps.
@@ -16,9 +16,19 @@ function run(p: PlayerState, seconds: number, sprint = false): CastEvent[] {
 }
 const types = (e: CastEvent[]) => e.map((x) => x.type);
 
-describe('casting scenarios', () => {
+/** The earlier design: spell held in hand until release, stamina drains. Kept tested for later. */
+const HOLD: CastingConfig = {
+  ...CASTING,
+  autoCast: false,
+  staminaEnabled: true,
+  empowerThreshold: 0.7,
+  manaRegenPerSec: 15,
+  manaRegenDelaySec: 0.5,
+};
+
+describe('hold-to-cast mode (autoCast off, stamina on)', () => {
   it('1. fast, clear speech → empowered spell held in hand, fires on release', () => {
-    const p = new PlayerState();
+    const p = new PlayerState(HOLD);
     expect(p.startChannel()).toBe(true);
     run(p, 0.6); // spoke quickly: mana 100 → 85, still above the 70% mark
     expect(p.empowerWindowOpen).toBe(true);
@@ -35,7 +45,7 @@ describe('casting scenarios', () => {
   });
 
   it('2. slow speech: recognized after mana passes the 70% mark → normal spell', () => {
-    const p = new PlayerState();
+    const p = new PlayerState(HOLD);
     p.startChannel();
     run(p, 1.6); // 100 - 40 = 60%
     p.recognize('frost');
@@ -43,7 +53,7 @@ describe('casting scenarios', () => {
   });
 
   it('3. nothing recognized: mana runs out → fizzle (no-mana), then mana refills', () => {
-    const p = new PlayerState();
+    const p = new PlayerState(HOLD);
     p.startChannel();
     const events = run(p, 5);
     expect(events).toContainEqual({ type: 'fizzle', reason: 'no-mana' });
@@ -53,7 +63,7 @@ describe('casting scenarios', () => {
   });
 
   it('4a. released while still speaking, recognizer then matches → fires immediately', () => {
-    const p = new PlayerState();
+    const p = new PlayerState(HOLD);
     p.startChannel();
     run(p, 0.5);
     expect(p.release()).toBe('awaiting');
@@ -65,7 +75,7 @@ describe('casting scenarios', () => {
   });
 
   it('4b. released, recognizer finds no command → fizzle (misheard)', () => {
-    const p = new PlayerState();
+    const p = new PlayerState(HOLD);
     p.startChannel();
     run(p, 0.5);
     p.release();
@@ -74,17 +84,17 @@ describe('casting scenarios', () => {
   });
 
   it('4c. released, recognizer never answers → times out as misheard', () => {
-    const p = new PlayerState();
+    const p = new PlayerState(HOLD);
     p.startChannel();
     run(p, 0.5);
     p.release();
-    const events = run(p, CASTING.resolveTimeoutSec + 0.1);
+    const events = run(p, HOLD.resolveTimeoutSec + 0.1);
     expect(events).toContainEqual({ type: 'fizzle', reason: 'misheard' });
     expect(p.phase).toBe('idle');
   });
 
   it('5. accidental click (very short) → cancelled silently, no fizzle', () => {
-    const p = new PlayerState();
+    const p = new PlayerState(HOLD);
     p.startChannel();
     run(p, 0.05);
     expect(p.release()).toBe('tap');
@@ -94,15 +104,15 @@ describe('casting scenarios', () => {
   });
 
   it('6. not enough mana to start → refused, nothing happens', () => {
-    const p = new PlayerState();
-    p.mana = CASTING.minManaToChannel - 1;
+    const p = new PlayerState(HOLD);
+    p.mana = HOLD.minManaToChannel - 1;
     expect(p.startChannel()).toBe(false);
     expect(p.drainEvents()).toEqual([{ type: 'channel-refused', reason: 'no-mana' }]);
     expect(p.phase).toBe('idle');
   });
 
   it('7. holding a charged spell too long → stamina runs out → spell fizzles (exhausted)', () => {
-    const p = new PlayerState();
+    const p = new PlayerState(HOLD);
     p.startChannel();
     run(p, 0.3);
     p.recognize('meteor');
@@ -118,7 +128,7 @@ describe('casting scenarios', () => {
   });
 
   it('8. pressing again while busy is refused; a second recognition is ignored', () => {
-    const p = new PlayerState();
+    const p = new PlayerState(HOLD);
     p.startChannel();
     run(p, 0.3);
     p.recognize('fireball');
@@ -128,7 +138,7 @@ describe('casting scenarios', () => {
   });
 
   it('9. focus lost / pointer unlocked mid-cast → cancelled', () => {
-    const p = new PlayerState();
+    const p = new PlayerState(HOLD);
     p.startChannel();
     run(p, 0.3);
     p.recognize('heal');
@@ -139,15 +149,15 @@ describe('casting scenarios', () => {
   });
 
   it('10. recognition exactly at the 70% mark counts as empowered', () => {
-    const p = new PlayerState();
+    const p = new PlayerState(HOLD);
     p.startChannel();
-    p.mana = p.maxMana * CASTING.empowerThreshold;
+    p.mana = p.maxMana * HOLD.empowerThreshold;
     p.recognize('fireball');
     expect(p.charged?.empowered).toBe(true);
   });
 
   it('11. starting a cast with less than 70% mana can never be empowered', () => {
-    const p = new PlayerState();
+    const p = new PlayerState(HOLD);
     p.mana = 60;
     p.startChannel();
     run(p, 0.1);
@@ -156,7 +166,7 @@ describe('casting scenarios', () => {
   });
 
   it('12. sprinting drains stamina; at 0 sprint locks until stamina recovers to the unlock level', () => {
-    const p = new PlayerState();
+    const p = new PlayerState(HOLD);
     run(p, 7, true); // 100 / 15 per second ≈ 6.7s of sprinting
     expect(p.stamina).toBeLessThan(1);
     expect(p.canSprint).toBe(false);
@@ -168,8 +178,8 @@ describe('casting scenarios', () => {
   });
 
   it('13. sprinting while holding a spell drains stamina faster', () => {
-    const a = new PlayerState();
-    const b = new PlayerState();
+    const a = new PlayerState(HOLD);
+    const b = new PlayerState(HOLD);
     for (const p of [a, b]) {
       p.startChannel();
       p.recognize('fireball');
@@ -180,8 +190,65 @@ describe('casting scenarios', () => {
   });
 
   it('14. invincible player takes no damage', () => {
-    const p = new PlayerState();
+    const p = new PlayerState(HOLD);
     p.damage(50);
     expect(p.hp).toBe(p.maxHp);
+  });
+});
+
+describe('auto-cast mode (current: spell fires as soon as it is recognized)', () => {
+  it('A1. recognized in the perfect zone → fires immediately, empowered', () => {
+    const p = new PlayerState();
+    p.startChannel();
+    run(p, 0.8); // 100 → 80%, above the 50% mark
+    p.recognize('fireball');
+    expect(p.drainEvents()).toContainEqual({ type: 'fired', commandId: 'fireball', empowered: true });
+    expect(p.phase).toBe('idle');
+    expect(p.release()).toBe('none'); // releasing the button afterwards does nothing
+  });
+
+  it('A2. recognized after mana passed the 50% mark → normal spell', () => {
+    const p = new PlayerState();
+    p.startChannel();
+    run(p, 2.4); // 100 - 60 = 40%
+    p.recognize('frost');
+    expect(p.drainEvents()).toContainEqual({ type: 'fired', commandId: 'frost', empowered: false });
+  });
+
+  it('A3. stamina is not used: unchanged by casting or sprinting, sprint always allowed', () => {
+    const p = new PlayerState();
+    p.startChannel();
+    run(p, 0.5, true);
+    p.recognize('meteor');
+    run(p, 10, true);
+    expect(p.stamina).toBe(p.maxStamina);
+    expect(p.canSprint).toBe(true);
+  });
+
+  it('A4. released before recognition, then recognized → fires', () => {
+    const p = new PlayerState();
+    p.startChannel();
+    run(p, 0.5);
+    expect(p.release()).toBe('awaiting');
+    p.recognize('mage-shield');
+    expect(p.drainEvents()).toContainEqual({ type: 'fired', commandId: 'mage-shield', empowered: true });
+  });
+
+  it('A5. mana refills quickly after a cast (testing regen rate)', () => {
+    const p = new PlayerState();
+    p.startChannel();
+    run(p, 2); // 50 mana left
+    p.recognize('fireball');
+    run(p, 1.5);
+    expect(p.mana).toBe(p.maxMana);
+  });
+
+  it('A6. the perfect zone covers the top half of the mana bar', () => {
+    const p = new PlayerState();
+    expect(p.empowerMark).toBe(CASTING.empowerThreshold);
+    p.mana = 51;
+    expect(p.empowerWindowOpen).toBe(true);
+    p.mana = 49;
+    expect(p.empowerWindowOpen).toBe(false);
   });
 });

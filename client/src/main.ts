@@ -1,4 +1,4 @@
-import { PlayerState } from '@game/shared';
+﻿import { PlayerState } from '@game/shared';
 import { createWorld } from './render/world.ts';
 import { buildNightEnvironment } from './render/environment.ts';
 import { buildCitadel } from './render/citadel.ts';
@@ -9,7 +9,7 @@ import { SpellCaster } from './game/spellCaster.ts';
 import { Hud } from './ui/hud.ts';
 
 // Phase 1 will grow this into the single-player game. For now: walk around the
-// citadel at night and cast with right mouse + keys 1–4 (voice lives in the voice lab).
+// citadel at night and cast with right mouse + keys 1–5 (voice lives in the voice lab).
 
 const container = document.getElementById('view')!;
 const overlay = document.getElementById('overlay')!;
@@ -36,7 +36,7 @@ window.addEventListener('mouseup', (e) => {
   if (e.button === 2) caster.release();
 });
 window.addEventListener('keydown', (e) => {
-  if (!e.repeat && /^Digit[1-4]$/.test(e.code)) caster.hotkey(Number(e.code.slice(5)));
+  if (!e.repeat && /^Digit[1-5]$/.test(e.code)) caster.hotkey(Number(e.code.slice(5)));
 });
 window.addEventListener('blur', () => caster.cancel());
 

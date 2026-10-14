@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SPELLS } from '@game/shared';
 
 // Placeholder spell visuals: simple shapes that grow and fade. Real VFX come in Phase 1.
 
@@ -21,6 +22,7 @@ const SPELL_COLORS: Record<string, number> = {
   fortress: 0x9aa6b8,
   'help-me': 0xff6b9d,
   focus: 0xff2d2d,
+  'mage-shield': 0x6fd8ff,
 };
 
 export function spellColor(commandId: string): number {
@@ -104,6 +106,44 @@ export class SpellEffects {
     this.spawnSphere(color, point, 0.5, (commandId === 'frost' ? 5 : 4) * scale, 0.9);
   }
 
+  /**
+   * Protective bubble around the caster that follows them, then flickers out.
+   * @param follow returns the caster's feet position each frame
+   */
+  shield(follow: () => THREE.Vector3, scale = 1): void {
+    const r = SPELLS.shieldRadius * scale;
+    const group = new THREE.Group();
+    const shellMat = new THREE.MeshBasicMaterial({
+      color: 0x6fd8ff,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+    });
+    group.add(new THREE.Mesh(new THREE.SphereGeometry(r, 32, 20), shellMat));
+    const lattice = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(r * 1.01, 1),
+      new THREE.MeshBasicMaterial({ color: 0xbff4ff, wireframe: true, transparent: true, opacity: 0.5, depthWrite: false }),
+    );
+    group.add(lattice);
+    const latticeMat = lattice.material as THREE.MeshBasicMaterial;
+    const life = SPELLS.shieldDurationSec;
+    this.add(group, life, 0, (e, k) => {
+      group.position.copy(follow()).setY(follow().y + r * 0.55);
+      const t = k * life;
+      const appear = Math.min(1, t / 0.15); // pop in
+      const fadeStart = 0.8;
+      const fade = k < fadeStart ? 1 : (1 - k) / (1 - fadeStart);
+      const flicker = k > fadeStart && Math.floor(t * 20) % 2 === 0 ? 0.4 : 1; // blink before vanishing
+      group.scale.setScalar(0.6 + 0.4 * appear);
+      lattice.rotation.y = t * 0.8;
+      lattice.rotation.x = t * 0.3;
+      e.material.opacity = 0.18 * fade * flicker;
+      latticeMat.opacity = 0.5 * fade * flicker;
+    }, shellMat);
+  }
+
   /** Flat gold ring racing outward along the ground (empowered spells). */
   private spawnShockwave(at: THREE.Vector3, radius: number): void {
     const ring = new THREE.Mesh(
@@ -135,8 +175,11 @@ export class SpellEffects {
       e.tick(e, k);
       if (k >= 1) {
         this.scene.remove(e.object);
-        if (e.object instanceof THREE.Mesh) e.object.geometry.dispose();
-        e.material.dispose();
+        e.object.traverse((o) => {
+          if (!(o instanceof THREE.Mesh)) return;
+          o.geometry.dispose();
+          (o.material as THREE.Material).dispose();
+        });
         return false;
       }
       return true;
@@ -155,8 +198,14 @@ export class SpellEffects {
     });
   }
 
-  private add(object: THREE.Mesh, life: number, delay: number, tick: ActiveEffect['tick']): ActiveEffect {
-    const material = object.material as THREE.Material & { opacity: number };
+  /** @param material the material `tick` animates (defaults to the mesh's own) */
+  private add(
+    object: THREE.Object3D,
+    life: number,
+    delay: number,
+    tick: ActiveEffect['tick'],
+    material = (object as THREE.Mesh).material as THREE.Material & { opacity: number },
+  ): ActiveEffect {
     object.visible = delay === 0;
     this.scene.add(object);
     const effect: ActiveEffect = { object, material, age: 0, life, delay, tick };

@@ -1,4 +1,4 @@
-import {
+﻿import {
   CLASS_NAMES,
   COMMANDS,
   PlayerState,
@@ -66,7 +66,7 @@ world.start();
 if (import.meta.env.DEV) Object.assign(window, { __world: world, __caster: caster, __state: state, __arms: arms }); // debug hooks
 
 // ---------------------------------------------------------------------------
-// Cast input: hold right mouse (or V), keys 1–4 replace the voice
+// Cast input: hold right mouse (or V), keys 1–5 replace the voice
 // ---------------------------------------------------------------------------
 function isTyping(e: Event): boolean {
   const t = e.target as HTMLElement | null;
@@ -83,7 +83,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyV') {
     e.preventDefault();
     caster.press();
-  } else if (/^Digit[1-4]$/.test(e.code)) {
+  } else if (/^Digit[1-5]$/.test(e.code)) {
     caster.hotkey(Number(e.code.slice(5)));
   }
 });

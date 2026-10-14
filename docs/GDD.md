@@ -54,14 +54,18 @@ Lặp lại ~10 đợt. Đợt 5 và đợt 10 có trùm. Lõi bị phá = thua.
 
 Người chơi **tự do đọc bất kỳ câu chú nào** (không cần theo chỉ dẫn).
 
-1. **Giữ chuột phải** → hai tay tụ một quả cầu sáng, micro bắt đầu nghe, **mana tụt liên tục** (~25/giây, hết thanh trong ~4 giây).
-2. Trên thanh mana có **mốc tròn ở 70%**. Nếu câu chú được nhận ra khi mana **còn ở trên mốc** → phép **cường hóa ✦** (to hơn 50%, vòng sóng vàng khi nổ).
-3. Câu chú được nhận ra → phép **hiện trên tay và được giữ** (quả cầu đổi màu theo phép; cường hóa có hào quang vàng). **Mana ngừng tụt và tự hồi** (~15/giây, sau 0,5 giây).
-4. Trong lúc **giữ phép trên tay, thể lực tụt** (~20/giây, ~5 giây là cạn). Dưới 30% thì thanh thể lực nhấp nháy đỏ và tay run.
-5. **Thả chuột phải** → phép bay tới vòng ngắm dưới tâm ngắm.
-6. Phụ đề hiện **2 giây** cho biết người chơi vừa đọc gì và có khớp câu chú nào không.
+**Bản hiện tại (16/10/2026) — tự bắn khi đọc đúng:**
 
-Các tình huống đã giả lập và cách xử lý (kiểm thử tự động trong `shared/src/playerState.test.ts`):
+1. **Giữ chuột phải** → hai tay tụ một quả cầu sáng, micro bắt đầu nghe, **mana tụt liên tục** (~25/giây, hết thanh trong ~4 giây).
+2. Thanh mana có **vùng PERFECT = nửa trên của thanh** (mốc tròn ở 50%). Câu chú được nhận ra khi mana **còn trong vùng PERFECT** → phép **cường hóa ✦** (to hơn 50%, vòng sóng vàng khi nổ).
+3. Câu chú được nhận ra → **phép tự bắn ngay** tới vòng ngắm (không cần thả chuột). Mana ngừng tụt và tự hồi (**đang để 40/giây cho test**).
+4. **Tạo khiên** (phím 5): khiên bong bóng bao quanh người chơi, đi theo người chơi, **tồn tại 2 giây** rồi nhấp nháy và biến mất. Cường hóa → khiên to hơn 50%.
+5. Phụ đề hiện **2 giây** cho biết người chơi vừa đọc gì và có khớp câu chú nào không.
+6. Thanh **thể lực hiện nhưng tạm chưa dùng** (`CASTING.staminaEnabled = false`).
+
+**Bản trước — giữ phép trên tay** (vẫn giữ trong code, bật lại bằng `CASTING.autoCast = false` + `staminaEnabled = true`): phép nhận ra thì nằm trên tay, thể lực tụt ~20/giây, thả chuột mới bắn; thể lực về 0 thì phép tan biến.
+
+Các tình huống đã giả lập và cách xử lý (kiểm thử tự động trong `shared/src/playerState.test.ts`, cho cả hai chế độ):
 
 | Tình huống | Xử lý |
 |---|---|
@@ -104,6 +108,7 @@ Mọi class đều xây được tháp; Kỹ Sư xây rẻ hơn 30% và có thê
 | Pháp Sư | **Băng giá** | Vùng băng làm chậm quái 60% trong 4s | 2 |
 | Pháp Sư | **Sấm sét** | Sét đánh nảy qua 5 mục tiêu | 3 |
 | Pháp Sư | **Thiên thạch** *(tối thượng)* | Thiên thạch lớn rơi sau 1.5s | 4 |
+| Pháp Sư | **Tạo khiên** | Khiên bao quanh bản thân, tồn tại 2s | 5 |
 | Hộ Vệ | **Dựng khiên** | Tạo tường chắn chặn đường 6s | 1 |
 | Hộ Vệ | **Khiêu khích** | Quái xung quanh tấn công Hộ Vệ | 2 |
 | Hộ Vệ | **Đập đất** | Hất tung quái quanh mình | 3 |

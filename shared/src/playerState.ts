@@ -1,13 +1,17 @@
-import { CASTING, PLAYER } from './balance.ts';
+﻿import { CASTING, PLAYER } from './balance.ts';
 
 // Player resources and the spellcasting state machine. Pure logic (no DOM, no
 // rendering) so it can be unit-tested and later run on the server.
 //
-//   idle ──press──▶ channeling ──recognized──▶ charged ──release──▶ fired
-//                     │  mana drains            stamina drains
+//   idle ──press──▶ channeling ──recognized──▶ fired            (autoCast: true, current)
+//                     │                     └─▶ charged ──release──▶ fired   (autoCast: false)
+//                     │  mana drains            stamina drains (if staminaEnabled)
 //                     │  mana hits 0 → fizzle   stamina hits 0 → fizzle (exhausted)
 //                     └─release──▶ resolving ──recognized──▶ fired
 //                        (short tap → cancelled)  └─no match / timeout → fizzle (misheard)
+
+/** CASTING with literal types widened, so tests can override single values. */
+export type CastingConfig = { [K in keyof typeof CASTING]: (typeof CASTING)[K] extends boolean ? boolean : number };
 
 export type CastPhase = 'idle' | 'channeling' | 'resolving' | 'charged';
 export type FizzleReason = 'no-mana' | 'misheard' | 'exhausted' | 'cancelled';
@@ -44,22 +48,25 @@ export class PlayerState {
   private resolveTime = 0;
   private events: CastEvent[] = [];
 
+  /** @param cfg casting rules; defaults to CASTING from balance.ts (tests pass overrides). */
+  constructor(private cfg: CastingConfig = CASTING) {}
+
   /** Mana level (0..1) at which the empower marker sits. */
   get empowerMark(): number {
-    return CASTING.empowerThreshold;
+    return this.cfg.empowerThreshold;
   }
 
   /** True while a recognition right now would give an empowered spell. */
   get empowerWindowOpen(): boolean {
-    return this.mana >= this.maxMana * CASTING.empowerThreshold;
+    return this.mana >= this.maxMana * this.cfg.empowerThreshold;
   }
 
   get canSprint(): boolean {
-    return !this.sprintLocked && this.stamina > 0;
+    return !this.cfg.staminaEnabled || (!this.sprintLocked && this.stamina > 0);
   }
 
   get staminaLow(): boolean {
-    return this.stamina < this.maxStamina * CASTING.staminaLowWarning;
+    return this.stamina < this.maxStamina * this.cfg.staminaLowWarning;
   }
 
   /** Returns and clears pending events (UI/effects react to these). */
@@ -75,7 +82,7 @@ export class PlayerState {
       this.emit({ type: 'channel-refused', reason: 'busy' });
       return false;
     }
-    if (this.mana < CASTING.minManaToChannel) {
+    if (this.mana < this.cfg.minManaToChannel) {
       this.emit({ type: 'channel-refused', reason: 'no-mana' });
       return false;
     }
@@ -89,9 +96,9 @@ export class PlayerState {
   recognize(commandId: string): boolean {
     if (this.phase !== 'channeling' && this.phase !== 'resolving') return false;
     const empowered = this.empowerWindowOpen;
-    this.manaRegenWait = CASTING.manaRegenDelaySec;
-    if (this.phase === 'resolving') {
-      // Button was already released: cast right away.
+    this.manaRegenWait = this.cfg.manaRegenDelaySec;
+    if (this.phase === 'resolving' || this.cfg.autoCast) {
+      // Auto-cast mode, or the button was already released: cast right away.
       this.phase = 'idle';
       this.emit({ type: 'fired', commandId, empowered });
     } else {
@@ -108,13 +115,13 @@ export class PlayerState {
       const c = this.charged;
       this.phase = 'idle';
       this.charged = null;
-      this.staminaRegenWait = CASTING.staminaRegenDelaySec;
+      this.staminaRegenWait = this.cfg.staminaRegenDelaySec;
       this.emit({ type: 'fired', commandId: c.commandId, empowered: c.empowered });
       return 'fired';
     }
     if (this.phase === 'channeling') {
-      this.manaRegenWait = CASTING.manaRegenDelaySec;
-      if (this.channelTime < CASTING.tapCancelSec) {
+      this.manaRegenWait = this.cfg.manaRegenDelaySec;
+      if (this.channelTime < this.cfg.tapCancelSec) {
         this.phase = 'idle';
         this.emit({ type: 'tap-cancelled' });
         return 'tap';
@@ -137,8 +144,8 @@ export class PlayerState {
   /** Abort whatever is in progress (focus lost, pointer unlocked…). */
   cancel(): void {
     if (this.phase === 'idle') return;
-    if (this.phase === 'charged') this.staminaRegenWait = CASTING.staminaRegenDelaySec;
-    else this.manaRegenWait = CASTING.manaRegenDelaySec;
+    if (this.phase === 'charged') this.staminaRegenWait = this.cfg.staminaRegenDelaySec;
+    else this.manaRegenWait = this.cfg.manaRegenDelaySec;
     this.phase = 'idle';
     this.charged = null;
     this.emit({ type: 'fizzle', reason: 'cancelled' });
@@ -154,26 +161,28 @@ export class PlayerState {
     // --- Casting ---
     if (this.phase === 'channeling') {
       this.channelTime += dt;
-      this.mana -= CASTING.manaDrainPerSec * dt;
+      this.mana -= this.cfg.manaDrainPerSec * dt;
       if (this.mana <= 0) {
         this.mana = 0;
         this.phase = 'idle';
-        this.manaRegenWait = CASTING.manaRegenDelaySec;
+        this.manaRegenWait = this.cfg.manaRegenDelaySec;
         this.emit({ type: 'fizzle', reason: 'no-mana' });
       }
     } else if (this.phase === 'resolving') {
       this.resolveTime += dt;
-      if (this.resolveTime >= CASTING.resolveTimeoutSec) this.resolveFailed();
+      if (this.resolveTime >= this.cfg.resolveTimeoutSec) this.resolveFailed();
     }
 
     // --- Stamina drain ---
     this.sprinting = wantsSprint && this.canSprint;
     let staminaDrain = 0;
-    if (this.phase === 'charged') staminaDrain += CASTING.staminaHoldDrainPerSec;
-    if (this.sprinting) staminaDrain += CASTING.staminaSprintDrainPerSec;
+    if (this.cfg.staminaEnabled) {
+      if (this.phase === 'charged') staminaDrain += this.cfg.staminaHoldDrainPerSec;
+      if (this.sprinting) staminaDrain += this.cfg.staminaSprintDrainPerSec;
+    }
     if (staminaDrain > 0) {
       this.stamina -= staminaDrain * dt;
-      this.staminaRegenWait = CASTING.staminaRegenDelaySec;
+      this.staminaRegenWait = this.cfg.staminaRegenDelaySec;
       if (this.stamina <= 0) {
         this.stamina = 0;
         this.sprintLocked = true;
@@ -189,13 +198,13 @@ export class PlayerState {
     // --- Regeneration ---
     if (this.phase !== 'channeling') {
       if (this.manaRegenWait > 0) this.manaRegenWait -= dt;
-      else this.mana = Math.min(this.maxMana, this.mana + CASTING.manaRegenPerSec * dt);
+      else this.mana = Math.min(this.maxMana, this.mana + this.cfg.manaRegenPerSec * dt);
     }
     if (staminaDrain === 0) {
       if (this.staminaRegenWait > 0) this.staminaRegenWait -= dt;
-      else this.stamina = Math.min(this.maxStamina, this.stamina + CASTING.staminaRegenPerSec * dt);
+      else this.stamina = Math.min(this.maxStamina, this.stamina + this.cfg.staminaRegenPerSec * dt);
     }
-    if (this.sprintLocked && this.stamina >= CASTING.staminaSprintUnlock) this.sprintLocked = false;
+    if (this.sprintLocked && this.stamina >= this.cfg.staminaSprintUnlock) this.sprintLocked = false;
   }
 
   private emit(e: CastEvent): void {

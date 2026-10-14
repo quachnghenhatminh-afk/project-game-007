@@ -1,4 +1,4 @@
-// SINGLE SOURCE OF TRUTH for voice commands.
+﻿// SINGLE SOURCE OF TRUTH for voice commands.
 // Vosk grammar, hotkeys and on-screen spell hints are all generated from this table.
 // Phrases are written in standard Vietnamese, lowercase. The first phrase is the
 // canonical one shown in UI; the rest are aliases.
@@ -9,11 +9,13 @@ export interface VoiceCommand {
   id: string;
   phrases: readonly string[];
   classId: ClassId;
-  /** Fallback key 1–4, or null for commands without a hotkey. */
-  hotkey: 1 | 2 | 3 | 4 | null;
+  /** Fallback key 1–5, or null for commands without a hotkey. */
+  hotkey: 1 | 2 | 3 | 4 | 5 | null;
   costMana: number;
   cooldownMs: number;
   isUltimate?: boolean;
+  /** Takes effect on the caster immediately instead of flying to the aim point. */
+  selfCast?: boolean;
 }
 
 export const CLASS_NAMES: Record<ClassId, string> = {
@@ -30,6 +32,8 @@ export const COMMANDS: readonly VoiceCommand[] = [
   { id: 'frost', phrases: ['băng giá'], classId: 'mage', hotkey: 2, costMana: 25, cooldownMs: 6000 },
   { id: 'lightning', phrases: ['sấm sét'], classId: 'mage', hotkey: 3, costMana: 30, cooldownMs: 5000 },
   { id: 'meteor', phrases: ['thiên thạch'], classId: 'mage', hotkey: 4, costMana: 80, cooldownMs: 45000, isUltimate: true },
+  /** Self-cast: a bubble shield around the caster for 2s (no aiming). */
+  { id: 'mage-shield', phrases: ['tạo khiên'], classId: 'mage', hotkey: 5, costMana: 20, cooldownMs: 4000, selfCast: true },
 
   { id: 'raise-shield', phrases: ['dựng khiên'], classId: 'guardian', hotkey: 1, costMana: 25, cooldownMs: 10000 },
   { id: 'taunt', phrases: ['khiêu khích'], classId: 'guardian', hotkey: 2, costMana: 15, cooldownMs: 8000 },
