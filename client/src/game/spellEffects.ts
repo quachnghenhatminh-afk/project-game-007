@@ -23,6 +23,10 @@ const SPELL_COLORS: Record<string, number> = {
   focus: 0xff2d2d,
 };
 
+export function spellColor(commandId: string): number {
+  return SPELL_COLORS[commandId] ?? 0xffffff;
+}
+
 interface ActiveEffect {
   object: THREE.Object3D;
   material: THREE.Material & { opacity: number };

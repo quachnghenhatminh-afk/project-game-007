@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 import { CITADEL } from '@game/shared';
-import { PEDESTAL_RADIUS, TOWER_RADIUS, angleToNearestGate, gateTowerPositions } from '../render/citadel.ts';
+import { WALL_HALF_THICKNESS, angleToNearestGate, citadelColliders } from '../render/citadel.ts';
 
 const EYE_HEIGHT = 1.7;
 const WALK_SPEED = 6;
@@ -12,14 +12,17 @@ const PLAYER_RADIUS = 0.45;
 
 /**
  * First-person controller: pointer-lock mouse look, WASD, Shift to run, Space to jump.
- * Collides with the citadel wall (passable only through gates), gate towers and the crystal pedestal.
+ * Collides with the citadel wall (passable only through gates), towers and props,
+ * and cannot leave the play area (the fog wall in the forest).
  */
 export class FpsController {
   readonly controls: PointerLockControls;
+  /** Horizontal speed this frame (m/s), for head/arm bob. */
+  speed = 0;
   private keys = new Set<string>();
   private velY = 0;
   private onGround = true;
-  private towers = gateTowerPositions();
+  private colliders = citadelColliders();
 
   constructor(private camera: THREE.PerspectiveCamera, domElement: HTMLElement) {
     this.controls = new PointerLockControls(camera, domElement);
@@ -40,14 +43,21 @@ export class FpsController {
     return this.controls.isLocked;
   }
 
+  get grounded(): boolean {
+    return this.onGround;
+  }
+
   lock(): void {
     this.controls.lock();
   }
 
   update(dt: number): void {
-    if (!this.controls.isLocked) return;
+    if (!this.controls.isLocked) {
+      this.speed = 0;
+      return;
+    }
     const k = this.keys;
-    const speed = k.has('ShiftLeft') || k.has('ShiftRight') ? RUN_SPEED : WALK_SPEED;
+    const runSpeed = k.has('ShiftLeft') || k.has('ShiftRight') ? RUN_SPEED : WALK_SPEED;
     let fwd = (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0);
     let right = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
     const len = Math.hypot(fwd, right);
@@ -57,10 +67,13 @@ export class FpsController {
     }
 
     const pos = this.camera.position;
+    const prevX = pos.x;
+    const prevZ = pos.z;
     const prevR = Math.hypot(pos.x, pos.z);
-    this.controls.moveForward(fwd * speed * dt);
-    this.controls.moveRight(right * speed * dt);
+    this.controls.moveForward(fwd * runSpeed * dt);
+    this.controls.moveRight(right * runSpeed * dt);
     this.collide(pos, prevR);
+    this.speed = dt > 0 ? Math.hypot(pos.x - prevX, pos.z - prevZ) / dt : 0;
 
     if (k.has('Space') && this.onGround) {
       this.velY = JUMP_SPEED;
@@ -79,18 +92,16 @@ export class FpsController {
     const C = CITADEL;
     // Wall ring: blocked unless within a gate opening.
     const r = Math.hypot(pos.x, pos.z);
-    const inner = C.wallRadius - C.wallThickness / 2 - PLAYER_RADIUS;
-    const outer = C.wallRadius + C.wallThickness / 2 + PLAYER_RADIUS;
+    const inner = C.wallRadius - WALL_HALF_THICKNESS - PLAYER_RADIUS;
+    const outer = C.wallRadius + WALL_HALF_THICKNESS + PLAYER_RADIUS;
     if (r > inner && r < outer) {
       const a = Math.atan2(pos.x, pos.z);
       const inGate = angleToNearestGate(a) * C.wallRadius < C.gateWidth / 2 - PLAYER_RADIUS;
       if (!inGate) setRadius(pos, prevR < C.wallRadius ? inner : outer);
     }
-    // Round obstacles.
-    pushOutOfCircle(pos, 0, 0, PEDESTAL_RADIUS + PLAYER_RADIUS);
-    for (const t of this.towers) pushOutOfCircle(pos, t.x, t.z, TOWER_RADIUS + PLAYER_RADIUS);
-    // World bounds.
-    if (Math.hypot(pos.x, pos.z) > C.forestOuterRadius) setRadius(pos, C.forestOuterRadius);
+    for (const c of this.colliders) pushOutOfCircle(pos, c.x, c.z, c.r + PLAYER_RADIUS);
+    // Edge of the play area, hidden in the fog.
+    if (Math.hypot(pos.x, pos.z) > C.playAreaRadius) setRadius(pos, C.playAreaRadius);
   }
 }
 

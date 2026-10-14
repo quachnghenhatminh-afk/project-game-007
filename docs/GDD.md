@@ -136,6 +136,8 @@ Số lượng quái và máu quái **tăng theo số người chơi** trong phò
 - **Bản đồ 1 (Giai đoạn 1) — Thành Pha Lê:** thành trì **hình tròn** (bán kính ~30m) có **4 cửa** theo 4 hướng, đánh số 1–4. Giữa thành là **một viên pha lê lớn** (đây chính là Lõi pháo đài, pha lê vỡ = thua). Xung quanh thành là **rừng thông**; từ mỗi cửa có một con đường xuyên rừng, cuối đường là cổng sinh quái.
   - **Nhịp mở cửa:** đợt đầu quái chỉ tràn vào từ **cửa 1**; các đợt sau lần lượt mở thêm **cửa 2, 3, 4** → người chơi phải chia nhau giữ nhiều hướng. Thứ tự và đợt mở cửa sẽ chốt khi cân bằng ở Giai đoạn 1.
   - Quái đi theo đường: cổng sinh quái → cửa thành → pha lê. Tháp đặt dọc đường và quanh sân trong.
+  - **Bối cảnh ban đêm:** trời sao, trăng, đuốc dọc tường thành, cửa thành và hai bên đường; 4 chậu lửa quanh pha lê. Pha lê là nguồn sáng xanh chính giữa thành.
+  - **Sương mù giới hạn bản đồ:** cách thành ~40m trong rừng có một bức tường sương mù dày (bán kính ~76m). Người chơi không đi xuyên qua được; cổng sinh quái nằm ngay mép sương → quái "bước ra từ sương mù".
   - Đã có bản dựng placeholder (khối hình học) trong `client/src/render/citadel.ts`; kích thước dùng chung ở `shared/src/balance.ts` (`CITADEL`).
 - **Bản đồ 2–3 (Giai đoạn 3):** hai đường song song; đường chia nhánh có cổng mà người chơi có thể đóng/mở.
 

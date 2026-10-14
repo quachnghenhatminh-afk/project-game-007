@@ -11,7 +11,11 @@ import {
 import { createWorld } from '@game/client/render/world';
 import { buildCitadel } from '@game/client/render/citadel';
 import { FpsController } from '@game/client/input/fpsController';
-import { SpellEffects } from '@game/client/game/spellEffects';
+import { SpellEffects, spellColor } from '@game/client/game/spellEffects';
+import { buildNightEnvironment } from '@game/client/render/environment';
+import { FpArms } from '@game/client/render/fpArms';
+import { PlayerStats } from '@game/client/game/playerStats';
+import { Hud } from '@game/client/ui/hud';
 import { MicInput } from '@game/client/voice/micInput';
 import { VoskEngine, clearVoskCache, loadVoskModel } from '@game/client/voice/voskEngine';
 import { WebSpeechEngine, isWebSpeechSupported } from '@game/client/voice/webSpeechEngine';
@@ -27,19 +31,27 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 // 3D scene
 // ---------------------------------------------------------------------------
 const world = createWorld($('view'));
+const env = buildNightEnvironment(world.scene, world.fpScene);
 const citadel = buildCitadel(world.scene);
 const player = new FpsController(world.camera, world.renderer.domElement);
 const effects = new SpellEffects(world.scene);
+const arms = new FpArms(world.fpScene);
+const stats = new PlayerStats();
+const hud = new Hud($('stage'), stats);
 world.renderer.domElement.addEventListener('click', () => player.lock());
 player.controls.addEventListener('lock', () => $('lock-hint').classList.add('hidden'));
 player.controls.addEventListener('unlock', () => $('lock-hint').classList.remove('hidden'));
 world.onUpdate((dt, time) => {
   player.update(dt);
+  env.update(dt, time, world.camera);
   citadel.update(dt, time);
   effects.update(dt);
+  arms.update(dt, time, world.camera, player.speed);
+  stats.update(dt);
+  hud.update();
 });
 world.start();
-if (import.meta.env.DEV) Object.assign(window, { __world: world, __showHeard: showHeard }); // debug hooks for automated checks
+if (import.meta.env.DEV) Object.assign(window, { __world: world, __showHeard: showHeard, __arms: arms, __stats: stats }); // debug hooks for automated checks
 
 // ---------------------------------------------------------------------------
 // State
@@ -239,6 +251,7 @@ window.addEventListener('keydown', (e) => {
   $('hud-live').textContent = '';
   $('hud-heard').classList.remove('show');
   $('hud-rec').classList.remove('hidden');
+  arms.startCast();
   if (engineId === 'vosk') {
     vosk!.begin();
     mic!.startCapture();
@@ -271,7 +284,10 @@ async function release(): Promise<void> {
   effects.showAimRing(null);
   busy = false;
 
-  if (holdMs < MIN_HOLD_MS && !outcome.text) return;
+  if (holdMs < MIN_HOLD_MS && !outcome.text) {
+    arms.release(false);
+    return;
+  }
   const spokenTarget = target;
 
   const match =
@@ -293,10 +309,17 @@ async function release(): Promise<void> {
   saveAttempts(attempts);
   console.log('[voice]', { ...attempt, alternatives: outcome.alternatives, error: outcome.error });
 
-  if (match && aim) {
+  // Mana only gates the spell effect; the attempt still counts for recognition stats.
+  if (match && aim && stats.trySpendMana(match.command.costMana)) {
     effects.cast(match.command.id, aim);
+    arms.release(true, spellColor(match.command.id));
     flashResult(match.command.phrases[0]!, attempt.correct === false ? '#ffb347' : '#ffffff');
+  } else if (match) {
+    arms.release(false);
+    hud.flashMana();
+    flashResult('Không đủ mana', '#6fc3ff');
   } else {
+    arms.release(false);
     effects.fizzle(world.camera);
     flashResult('Niệm hỏng', '#aaaaaa');
   }

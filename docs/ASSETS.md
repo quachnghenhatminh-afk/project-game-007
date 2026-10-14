@@ -15,6 +15,11 @@ Quy ước kỹ thuật: xem `CLAUDE.md` mục 5 (.glb, 1 unit = 1m, Y lên, nh�
 | Cây thông (2–3 biến thể) | `prop-pine-a.glb`, `prop-pine-b.glb` | placeholder | **Rất ít polygon** (≤ 300 tris) vì có ~1400 cây |
 | Cổng sinh quái | `map-spawn-portal.glb` | placeholder | Ở cuối mỗi con đường, đường kính ~7m |
 | Ô đường đất, ô sân đá, đá, dốc | `map-road.glb`, `map-plaza.glb`, `prop-rock-a.glb` | placeholder | |
+| Tháp tường lớn (4 cái, giữa các cửa) | `map-wall-tower.glb` | placeholder | Trụ tròn bán kính ~3.6m, cao ~17m, có lỗ châu mai + cờ |
+| Đuốc treo tường | `prop-torch-wall.glb` | placeholder | Chỉ cần giá + cán đuốc; lửa làm bằng code |
+| Đuốc cột (dọc đường) | `prop-torch-post.glb` | placeholder | Cao ~2.6m |
+| Chậu lửa | `prop-brazier.glb` | placeholder | Trụ đá + chậu sắt, cao ~1.5m |
+| Cột đá quanh pha lê (8 cái) | `prop-obelisk.glb` | placeholder | Cao ~3.2m, đỉnh gắn pha lê nhỏ |
 
 ## Giai đoạn 1 — Nhân vật, quái, tháp
 
