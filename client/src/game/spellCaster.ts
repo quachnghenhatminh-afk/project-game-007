@@ -64,6 +64,10 @@ export class SpellCaster {
   onAttempt: (a: CastAttempt) => void = () => {};
   /** Guardian spirit started/ended: the owner lifts the player and slows them down. */
   onSpirit: (active: boolean) => void = () => {};
+  /** Spell bound to number key n (slot bar). Defaults to the command table's hotkeys. */
+  spellForKey: (n: number) => string | null = (n) => this.commands.find((c) => c.classId === this.classId && c.hotkey === n)?.id ?? null;
+  /** Spell in the active slot: cast on release when there is no voice input. */
+  activeSpell: () => string | null = () => null;
   /** The running spirit visual (melee uses it to swing the giant's arm). */
   spirit: SpiritHandle | null = null;
   private humStop: (() => void) | null = null;
@@ -92,7 +96,8 @@ export class SpellCaster {
     this.channelStart = performance.now();
     this.lastHeard = '';
     if (!this.voice) {
-      this.hud.setListening(true, '(chưa bật micro — dùng 1–5)');
+      const id = this.activeSpell();
+      this.hud.setListening(true, id ? `(thả chuột để niệm: ${this.phrase(id)})` : '(ô đang chọn trống — bấm J để chọn phép)');
       return;
     }
     this.hud.setListening(true, '');
@@ -104,6 +109,15 @@ export class SpellCaster {
 
   /** Cast button released. */
   release(): void {
+    // No voice: releasing casts the spell in the active slot (empowered if mana is still in the perfect zone).
+    const s = this.state;
+    if (!this.voice && s.phase === 'channeling' && s.castsThisChannel === 0 && s.channelTime >= CASTING.tapCancelSec) {
+      const id = this.activeSpell();
+      if (id) {
+        const empowered = s.empowerWindowOpen;
+        if (s.recognize(id)) this.report('hotkey', this.phrase(id), id, 'spell', empowered, null, null);
+      }
+    }
     const r = this.state.release();
     if (r === 'awaiting') {
       this.releasedAt = performance.now();
@@ -119,7 +133,8 @@ export class SpellCaster {
   /** Fallback keys 1–5: stand in for the voice while the cast button is held. */
   hotkey(n: number): void {
     if (this.state.phase !== 'channeling' && this.state.phase !== 'resolving') return;
-    const cmd = this.commands.find((c) => c.classId === this.classId && c.hotkey === n);
+    const id = this.spellForKey(n);
+    const cmd = id ? getCommand(id) : undefined;
     if (!cmd) return;
     this.stopListening();
     const empowered = this.state.empowerWindowOpen;

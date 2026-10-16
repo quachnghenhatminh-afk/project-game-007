@@ -15,6 +15,9 @@ import { Hud } from './ui/hud.ts';
 import { CoreBar } from './ui/coreBar.ts';
 import { Settings, applySavedVolume, chosenMap, switchMap } from './ui/settings.ts';
 import { Sfx } from './audio/sfx.ts';
+import { Loadout } from './game/loadout.ts';
+import { Spellbook } from './ui/spellbook.ts';
+import { Hotbar } from './ui/hotbar.ts';
 import { isWebSpeechSupported } from './voice/webSpeechEngine.ts';
 import { defaultVoiceChoice, setupVoice, type VoiceChoice } from './voice/voiceSetup.ts';
 
@@ -42,6 +45,17 @@ const state = new PlayerState();
 const hud = new Hud(document.body, state);
 const caster = new SpellCaster(state, arms, effects, hud, world.camera);
 const melee = new MeleeAttack(state, arms, effects, destructibles, caster, world.camera);
+
+// Loadout: spell slots 1–7 + weapon, edited in the spellbook (J), shown in the slot bar.
+const loadout = new Loadout();
+const syncWeapon = () => arms.setWeapon(loadout.weapon !== null);
+syncWeapon();
+loadout.onChange(syncWeapon);
+caster.spellForKey = (n) => loadout.spellAt(n);
+caster.activeSpell = () => loadout.activeSpell;
+melee.hasWeapon = () => loadout.weapon !== null;
+new Hotbar(document.body, loadout);
+const spellbook = new Spellbook(loadout);
 const core = { hp: CORE.maxHp, max: CORE.maxHp };
 const coreBar = new CoreBar(document.body, world.camera, map.coreTop, () => core, touch ? 112 : 30);
 player.sprintAllowed = () => state.canSprint;
@@ -117,7 +131,7 @@ $('btn-start').addEventListener('click', () => {
       () => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape').catch(() => {}),
       () => {},
     );
-    new TouchControls(document.body, player, caster, () => melee.attack());
+    new TouchControls(document.body, player, caster, () => melee.attack(), loadout, () => spellbook.toggle());
   } else {
     player.lock();
   }
@@ -127,7 +141,7 @@ $('btn-start').addEventListener('click', () => {
 
 async function startVoice(choice: VoiceChoice): Promise<void> {
   if (choice === 'off') {
-    toast(touch ? 'Không dùng giọng nói — chạm nút 1–7 để niệm phép' : 'Không dùng giọng nói — giữ chuột phải + phím 1–7', null, 5000);
+    toast(touch ? 'Không dùng giọng nói — chạm nút 1–7 để niệm phép · 📖 đổi thần chú' : 'Không dùng giọng nói — giữ chuột phải rồi thả để niệm phép ở ô đang chọn · J: sách phép', null, 6000);
     return;
   }
   toast('Đang chuẩn bị giọng nói…', null);
@@ -157,7 +171,7 @@ if (!touch) {
   player.controls.addEventListener('lock', () => pause.classList.add('hidden'));
   player.controls.addEventListener('unlock', () => {
     caster.cancel();
-    if (started && !settings.isOpen) pause.classList.remove('hidden');
+    if (started && !settings.isOpen && !spellbook.isOpen) pause.classList.remove('hidden');
   });
   window.addEventListener('contextmenu', (e) => e.preventDefault());
   window.addEventListener('mousedown', (e) => {
@@ -169,15 +183,43 @@ if (!touch) {
     if (e.button === 2) caster.release();
   });
   window.addEventListener('keydown', (e) => {
-    if (e.repeat || !player.isLocked) return;
+    if (e.repeat) return;
+    if (e.code === 'KeyJ' && started && !settings.isOpen) {
+      spellbook.toggle();
+      return;
+    }
+    if (e.code === 'Escape' && spellbook.isOpen) {
+      spellbook.close();
+      return;
+    }
+    if (!player.isLocked) return;
     if (e.code === 'KeyV') caster.press();
-    else if (/^Digit[1-7]$/.test(e.code)) caster.hotkey(Number(e.code.slice(5)));
+    else if (/^Digit[1-7]$/.test(e.code)) {
+      const n = Number(e.code.slice(5));
+      loadout.select(n - 1); // choose the active slot…
+      caster.hotkey(n); // …and, while channeling, cast it right away
+    }
   });
+  // Mouse wheel cycles the active slot.
+  window.addEventListener('wheel', (e) => {
+    if (player.isLocked) loadout.select(loadout.active + (e.deltaY > 0 ? 1 : -1));
+  });
+  spellbook.onToggle = (open) => {
+    if (open) {
+      caster.cancel();
+      if (player.isLocked) player.controls.unlock(); // free the mouse for dragging
+    } else {
+      player.lock();
+      setTimeout(() => {
+        if (!player.isLocked) pause.classList.remove('hidden'); // lock needs a click (e.g. closed with Esc)
+      }, 200);
+    }
+  };
   window.addEventListener('keyup', (e) => {
     if (e.code === 'KeyV') caster.release();
   });
 }
 window.addEventListener('blur', () => caster.cancel());
 if (import.meta.env.DEV) {
-  Object.assign(window, { __world: world, __caster: caster, __state: state, __player: player, __melee: melee, __destructibles: destructibles, __effects: effects, __arms: arms });
+  Object.assign(window, { __world: world, __caster: caster, __state: state, __player: player, __melee: melee, __destructibles: destructibles, __effects: effects, __arms: arms, __loadout: loadout, __spellbook: spellbook });
 }

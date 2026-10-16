@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import { MELEE, type PlayerState } from '@game/shared';
 import type { FpArms } from '../render/fpArms.ts';
 import type { Destructibles } from './destructibles.ts';
@@ -11,6 +11,8 @@ import { Sfx } from '../audio/sfx.ts';
 // arm reaches much further and hits twice as hard.
 
 export class MeleeAttack {
+  /** Is a weapon equipped? Bare hands reach less far. */
+  hasWeapon: () => boolean = () => true;
   private cooldown = 0;
   /** Seconds until the pending swing connects, or -1. */
   private pending = -1;
@@ -49,7 +51,7 @@ export class MeleeAttack {
     const hit = this.destructibles.melee(
       this.camera.position,
       fwd,
-      heavy ? MELEE.spiritRange : MELEE.range,
+      heavy ? MELEE.spiritRange : this.hasWeapon() ? MELEE.range : MELEE.range * 0.65,
       MELEE.arc,
       heavy ? 2 : 1,
     );

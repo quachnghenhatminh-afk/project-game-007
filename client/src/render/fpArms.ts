@@ -5,6 +5,7 @@ import { glowTexture } from './textures.ts';
 // Poses are in camera space: camera looks down -Z, +X right, +Y up.
 // The left arm is the right arm mirrored (parent scale.x = -1), so poses are shared.
 //
+// With a weapon equipped the energy gathers on the wand tip; empty-handed it gathers between the hands.
 // States: rest → channel (gathering a pale orb) → charged (spell orb held, colored,
 // bigger + gold halo when empowered, shaking when stamina is low) → throw / fizzle.
 
@@ -15,6 +16,11 @@ interface Pose {
 const REST: Pose = { pos: new THREE.Vector3(0.28, -0.4, -0.08), rot: new THREE.Euler(0.45, 0.18, 0.05) };
 const CAST: Pose = { pos: new THREE.Vector3(0.22, -0.36, -0.12), rot: new THREE.Euler(0.66, 0.36, -0.45) };
 const ORB_REST = new THREE.Vector3(0, -0.13, -0.62); // below the crosshair so aiming stays clear
+/** With a weapon: right hand points the wand forward, left hand stays low. */
+const WAND_CAST: Pose = { pos: new THREE.Vector3(0.2, -0.3, -0.2), rot: new THREE.Euler(0.12, 0.25, -0.1) };
+const OFFHAND: Pose = { pos: new THREE.Vector3(0.3, -0.42, -0.06), rot: new THREE.Euler(0.55, 0.3, 0.05) };
+/** The orb is smaller when it sits on the wand tip. */
+const TIP_ORB_SCALE = 0.85;
 /** Overall arm size; < 1 keeps the hands from filling the screen. */
 const ARM_SCALE = 0.8;
 const CHANNEL_COLOR = 0xbff4ff;
@@ -47,7 +53,12 @@ export class FpArms {
   private swingT = -1;
   private swingHeavy = false;
   private wandTip: THREE.Sprite;
+  private weapon = true;
   private sq = new THREE.Quaternion();
+  private anchor = new THREE.Vector3();
+  private orbStart = new THREE.Vector3();
+  private qL = new THREE.Quaternion();
+  private posL = new THREE.Vector3();
   private walkPhase = 0;
   private tmpPos = new THREE.Vector3();
   private tmpQ = new THREE.Quaternion();
@@ -110,6 +121,12 @@ export class FpArms {
     else if (color !== undefined) this.setColor(color, color);
   }
 
+  /** Shows/hides the wand; the charging orb moves to the wand tip or between the hands. */
+  setWeapon(equipped: boolean): void {
+    this.weapon = equipped;
+    this.wandTip.parent!.visible = equipped;
+  }
+
   /** Left click: chop downwards with the wand. Returns false if already mid-swing. */
   swing(heavy = false): boolean {
     if (this.swingT >= 0) return false;
@@ -156,17 +173,29 @@ export class FpArms {
       }
     }
 
+    // Right arm (index 0): two-handed cast pose, or wand-forward pose when armed.
+    const rightCast = this.weapon ? WAND_CAST : CAST;
     this.qA.setFromEuler(REST.rot);
-    this.qB.setFromEuler(CAST.rot);
+    this.qB.setFromEuler(rightCast.rot);
     this.tmpQ.copy(this.qA).slerp(this.qB, w);
-    this.tmpPos.lerpVectors(REST.pos, CAST.pos, w);
+    this.tmpPos.lerpVectors(REST.pos, rightCast.pos, w);
     this.tmpPos.y += bobY - thrust * 0.15 + jy;
     this.tmpPos.z -= thrust;
     this.tmpPos.x += jx;
+    // Left arm (index 1): joins the cast empty-handed, stays low when the wand does the work.
+    const leftCast = this.weapon ? OFFHAND : CAST;
+    this.qB.setFromEuler(leftCast.rot);
+    this.qL.copy(this.qA).slerp(this.qB, w);
+    this.posL.lerpVectors(REST.pos, leftCast.pos, w);
+    this.posL.y += bobY + jy;
+    if (!this.weapon) {
+      this.posL.y -= thrust * 0.15;
+      this.posL.z -= thrust;
+    }
     this.arms.forEach((arm, i) => {
-      arm.position.copy(this.tmpPos);
+      arm.position.copy(i === 0 ? this.tmpPos : this.posL);
       arm.position.x += i === 0 ? swayX : -swayX;
-      arm.quaternion.copy(this.tmpQ);
+      arm.quaternion.copy(i === 0 ? this.tmpQ : this.qL);
     });
 
     // Wand chop on the right arm: wind up (raise), slash down fast, recover.
@@ -187,13 +216,21 @@ export class FpArms {
       if (this.swingT >= 1) this.swingT = -1;
     }
 
-    // Orb between the hands.
+    // Where the energy gathers: the wand tip (armed) or between the hands.
+    if (this.weapon) {
+      this.root.updateMatrixWorld(true);
+      this.wandTip.getWorldPosition(this.anchor);
+      this.root.worldToLocal(this.anchor);
+    } else {
+      this.anchor.copy(ORB_REST).add(new THREE.Vector3(jx, bobY + jy, 0));
+    }
     const glowMat = this.halo.material as THREE.SpriteMaterial;
     if (this.state === 'channel' || this.state === 'charged') {
       const charged = this.state === 'charged';
       const pulse = 1 + Math.sin(time * (charged ? 10 : 18)) * 0.08;
-      const size = Math.min(1, w * 1.2) * (charged ? this.chargedScale : 1) * pulse;
-      this.orb.position.copy(ORB_REST).add(new THREE.Vector3(jx, bobY + jy, 0));
+      const size = Math.min(1, w * 1.2) * (charged ? this.chargedScale : 1) * pulse * (this.weapon ? TIP_ORB_SCALE : 1);
+      this.orb.position.copy(this.anchor);
+      this.orbStart.copy(this.anchor);
       this.orb.scale.setScalar(size);
       this.orbGlow.position.copy(this.orb.position);
       this.orbGlow.scale.setScalar(0.2 * size);
@@ -207,10 +244,10 @@ export class FpArms {
       const k = Math.min(this.releaseT, 1);
       const base = this.chargedScale;
       if (this.releaseOk) {
-        this.orb.position.copy(ORB_REST).setZ(ORB_REST.z - k * 4);
+        this.orb.position.copy(this.orbStart).setZ(this.orbStart.z - k * 4);
         this.orb.scale.setScalar(base * (1 + k));
       } else {
-        this.orb.position.copy(ORB_REST).setY(ORB_REST.y + k * 0.1);
+        this.orb.position.copy(this.orbStart).setY(this.orbStart.y + k * 0.1);
         this.orb.scale.setScalar(1 + k * 3);
       }
       this.orbMat.opacity = 1 - k;

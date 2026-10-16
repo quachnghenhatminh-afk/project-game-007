@@ -117,7 +117,11 @@ Mọi class đều xây được tháp; Kỹ Sư xây rẻ hơn 30% và có thê
 
 **Nhận diện gần đúng:** câu đọc chỉ cần **giống ≥70%** (so từng âm tiết, đúng thứ tự; sai dấu/thanh vẫn được tính gần đúng) là ra phép — miễn là nó rõ ràng gần với một câu hơn hẳn các câu khác (ví dụ "báo hộ" → Bảo hộ, "alo alo" → Alô alô; còn "quá đài" lơ lửng giữa "quá tải" và "pháo đài" thì không đoán).
 
-**Đánh tay:** **chuột trái** (điện thoại: nút CHÉM) — chém xuống bằng **đũa phép** cầm tay phải, tầm 3m.
+**Đánh tay:** **chuột trái** (điện thoại: nút CHÉM) — chém xuống bằng **đũa phép** cầm tay phải, tầm 3m (tay không: đấm, tầm ~2m).
+
+**Sách phép & trang bị (phím J, điện thoại: nút 📖):** kéo thả thần chú vào **ô 1–7**, kéo **đũa phép** vào **ô vũ khí** (kéo ra ngoài để tháo / bỏ trống). Thanh ô hiện phía trên thanh mana; ô đang chọn viền vàng (chọn bằng phím 1–7 hoặc lăn chuột). Lưu lại cho lần chơi sau.
+- **Không dùng giọng nói:** giữ chuột phải để tụ phép → **thả ra** là niệm phép ở ô đang chọn (thả khi mana còn trong vùng PERFECT → cường hóa ✦).
+- **Hoạt ảnh tụ phép:** có vũ khí → năng lượng tụ ở **mũi đũa phép** (tay phải chĩa đũa về phía trước); tay không → tụ giữa hai bàn tay như cũ.
 | Hộ Vệ | **Dựng khiên** | Tạo tường chắn chặn đường 6s | 1 |
 | Hộ Vệ | **Khiêu khích** | Quái xung quanh tấn công Hộ Vệ | 2 |
 | Hộ Vệ | **Đập đất** | Hất tung quái quanh mình | 3 |

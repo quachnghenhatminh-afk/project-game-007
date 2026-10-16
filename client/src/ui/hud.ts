@@ -68,7 +68,7 @@ const CSS = `
 .hud-flash { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); white-space: nowrap;
   font: 800 32px system-ui; text-transform: uppercase; opacity: 0; transition: opacity 0.6s; }
 .hud-flash.show { opacity: 1; transition: none; }
-.hud-subtitle { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); max-width: 80%;
+.hud-subtitle { position: absolute; left: 50%; bottom: 168px; transform: translateX(-50%); max-width: 80%;
   background: rgba(0,0,0,0.6); border-radius: 6px; padding: 6px 14px; text-align: center; font: 500 17px system-ui;
   opacity: 0; transition: opacity 0.4s; white-space: nowrap; }
 .hud-subtitle.show { opacity: 1; transition: none; }
@@ -84,8 +84,8 @@ const CSS = `
 
 /* Narrow view: HP/stamina move up so they never overlap the centered mana bar (keep last: overrides above). */
 @container (max-width: 1000px) {
-  :not(.touch) > .hud .hud-side { bottom: 92px; }
-  :not(.touch) > .hud .hud-subtitle { bottom: 160px; }
+  :not(.touch) > .hud .hud-side { bottom: 150px; }
+  :not(.touch) > .hud .hud-subtitle { bottom: 215px; }
 }
 `;
 

@@ -1,4 +1,5 @@
-﻿import { commandsForClass } from '@game/shared';
+﻿import { SLOT_COUNT, type Loadout } from '../game/loadout.ts';
+import { SPELL_ICONS, spellName } from '../ui/spellIcons.ts';
 import type { FpsController } from './fpsController.ts';
 import type { SpellCaster } from '../game/spellCaster.ts';
 
@@ -30,10 +31,19 @@ const CSS = `
 .tc-attack { right: 316px; bottom: 18px; width: 64px; height: 64px; font-size: 13px; border-color: #ffd27a; }
 .tc-spell { width: 46px; height: 46px; font-size: 9px; line-height: 1.05; text-align: center; padding: 2px; box-sizing: border-box; flex-direction: column; }
 .tc-spell b { display: block; font-size: 14px; }
+.tc-spell.empty { opacity: 0.35; }
+.tc-book { position: fixed; right: 62px; top: 12px; width: 42px; height: 42px; font-size: 20px; border-radius: 50%; }
 `;
 
 export class TouchControls {
-  constructor(container: HTMLElement, player: FpsController, caster: SpellCaster, onAttack: () => void = () => {}) {
+  constructor(
+    container: HTMLElement,
+    player: FpsController,
+    caster: SpellCaster,
+    onAttack: () => void = () => {},
+    loadout?: Loadout,
+    onBook: () => void = () => {},
+  ) {
     if (!document.getElementById('tc-style')) {
       const style = document.createElement('style');
       style.id = 'tc-style';
@@ -44,7 +54,7 @@ export class TouchControls {
     root.className = 'tc';
     root.innerHTML = `<div class="tc-left"></div><div class="tc-right"></div>
       <div class="tc-stick"><div class="tc-knob"></div></div>
-      <div class="tc-btn tc-cast">NIỆM</div><div class="tc-btn tc-jump">⤒</div><div class="tc-btn tc-attack">⚔<br>CHÉM</div>`;
+      <div class="tc-btn tc-cast">NIỆM</div><div class="tc-btn tc-jump">⤒</div><div class="tc-btn tc-attack">⚔<br>CHÉM</div><div class="tc-btn tc-book">📖</div>`;
     container.appendChild(root);
     player.touch.active = true;
 
@@ -143,33 +153,44 @@ export class TouchControls {
     );
     hold(q('.tc-jump'), () => (player.touch.jump = true));
     hold(q('.tc-attack'), onAttack);
+    hold(q('.tc-book'), onBook);
 
     // Spell buttons in an arc above NIỆM.
-    commandsForClass('mage', false).forEach((c, i, all) => {
+    // Slot buttons 1–7 in two rings around NIỆM; labels follow the loadout (📖 / J to change).
+    const slotButtons: HTMLElement[] = [];
+    for (let i = 0; i < SLOT_COUNT; i++) {
+      const n = i + 1;
       const btn = document.createElement('div');
       btn.className = 'tc-btn tc-spell';
-      btn.innerHTML = `<b>${c.hotkey}</b>${c.phrases[0]}`;
-      // Two rings around NIỆM: spells 1–4 close (radius 120), 5–7 further out (radius 180).
+      // Spells 1–4 close (radius 120), 5–7 further out (radius 180).
       const inner = i < 4;
-      const k = inner ? i / 3 : (i - 4) / Math.max(1, all.length - 5);
+      const k = inner ? i / 3 : (i - 4) / Math.max(1, SLOT_COUNT - 5);
       const a = Math.PI * (inner ? 0.5 + k * 0.44 : 0.56 + k * 0.33);
       const radius = inner ? 120 : 180;
       const castCenter = 16 + 42; // NIỆM: 16px from the edges, 84px wide
       btn.style.right = `${castCenter - 23 - Math.cos(a) * radius}px`;
       btn.style.bottom = `${castCenter - 23 + Math.sin(a) * radius}px`;
       root.appendChild(btn);
+      slotButtons.push(btn);
       hold(btn, () => {
         if (castHeld) {
-          caster.hotkey(c.hotkey ?? 0);
+          caster.hotkey(n);
         } else {
           // Tap alone: channel, cast, and end in one go.
           caster.press();
-          caster.hotkey(c.hotkey ?? 0);
+          caster.hotkey(n);
           caster.release();
         }
       });
-    });
-
+    }
+    const label = () =>
+      slotButtons.forEach((btn, i) => {
+        const id = loadout ? loadout.slots[i] ?? null : caster.spellForKey(i + 1);
+        btn.classList.toggle('empty', !id);
+        btn.innerHTML = id ? `<b>${SPELL_ICONS[id]?.glyph ?? i + 1}</b>${spellName(id)}` : `<b>${i + 1}</b>trống`;
+      });
+    label();
+    loadout?.onChange(label);
     // Never let the page scroll/zoom under the game.
     root.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
   }
