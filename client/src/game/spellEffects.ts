@@ -1,5 +1,6 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import { SPELLS } from '@game/shared';
+import { glowTexture } from '../render/textures.ts';
 
 // Placeholder spell visuals: simple shapes that grow and fade. Real VFX come in Phase 1.
 
@@ -23,6 +24,8 @@ const SPELL_COLORS: Record<string, number> = {
   'help-me': 0xff6b9d,
   focus: 0xff2d2d,
   'mage-shield': 0x6fd8ff,
+  'sound-blast': 0x9ff6ff,
+  'guardian-spirit': 0xa77bff,
 };
 
 export function spellColor(commandId: string): number {
@@ -38,7 +41,18 @@ interface ActiveEffect {
   tick(e: ActiveEffect, k: number): void;
 }
 
+/** Handle to the running guardian-spirit visual. */
+export interface SpiritHandle {
+  /** Swing the giant's arm (melee while the spirit is up). */
+  swing(): void;
+}
+
 export class SpellEffects {
+  /**
+   * Called when a spell actually lands (immediately for most, after the fall for Meteor,
+   * on arrival for the sound bullet). Used for destruction and explosion sounds.
+   */
+  onImpact: (commandId: string, point: THREE.Vector3, radius: number) => void = () => {};
   private active: ActiveEffect[] = [];
   private aimRing: THREE.Mesh;
   private raycaster = new THREE.Raycaster();
@@ -77,11 +91,20 @@ export class SpellEffects {
     (this.aimRing.material as THREE.MeshBasicMaterial).color.set(color);
   }
 
-  /** @param scale size multiplier (CASTING.empowerScale for empowered spells) */
-  cast(commandId: string, point: THREE.Vector3, scale = 1): void {
+  /**
+   * @param scale size multiplier (CASTING.empowerScale for empowered spells)
+   * @param from  where the spell leaves the caster (projectiles start here)
+   */
+  cast(commandId: string, point: THREE.Vector3, scale = 1, from?: THREE.Vector3): void {
     const color = SPELL_COLORS[commandId] ?? 0xffffff;
+    const radius = (SPELLS.impactRadius[commandId] ?? 2) * scale;
+    if (commandId === 'sound-blast') {
+      this.soundBullet(from ?? point.clone().setY(1.5), point, scale, () => this.onImpact(commandId, point, radius));
+      return;
+    }
     if (scale > 1) this.spawnShockwave(point, 6 * scale);
     if (commandId === 'meteor') {
+      this.later(1.5, () => this.onImpact(commandId, point, radius));
       this.spawnSphere(color, point, 2.5 * scale, 3.5 * scale, 1.5); // warning marker while it falls
       const rock = this.spawnSphere(0x5a2a1a, point, 0, 2.5, 1.5);
       rock.tick = (e, k) => {
@@ -104,6 +127,16 @@ export class SpellEffects {
       });
     }
     this.spawnSphere(color, point, 0.5, (commandId === 'frost' ? 5 : 4) * scale, 0.9);
+    this.onImpact(commandId, point, radius);
+  }
+
+  /** Runs n after delay seconds of game time. */
+  private later(delay: number, fn: () => void): void {
+    let done = false;
+    this.add(new THREE.Object3D(), 0.01, delay, () => {
+      if (!done) fn();
+      done = true;
+    }, { opacity: 1 } as unknown as THREE.Material & { opacity: number });
   }
 
   /**
@@ -142,6 +175,173 @@ export class SpellEffects {
       e.material.opacity = 0.18 * fade * flicker;
       latticeMat.opacity = 0.5 * fade * flicker;
     }, shellMat);
+  }
+
+  /** "Alô alô": a ring-wave bullet flying from `from` to `to`, bursting on arrival. */
+  private soundBullet(from: THREE.Vector3, to: THREE.Vector3, scale: number, onArrive: () => void): void {
+    const color = SPELL_COLORS['sound-blast']!;
+    const dir = to.clone().sub(from);
+    const dist = dir.length();
+    dir.normalize();
+    const travel = Math.max(0.15, dist / SPELLS.soundBulletSpeed);
+    const bullet = new THREE.Group();
+    const ringMat = new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+    for (let i = 0; i < 3; i++) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.35 + i * 0.18, 0.04, 6, 24), ringMat);
+      ring.position.z = -i * 0.35;
+      bullet.add(ring);
+    }
+    bullet.add(new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffffff })));
+    bullet.scale.setScalar(scale);
+    bullet.lookAt(dir); // local -Z… rings face the travel direction either way
+    bullet.position.copy(from);
+    let trailTimer = 0;
+    this.add(bullet, travel, 0, (e, k) => {
+      e.object.position.copy(from).addScaledVector(dir, dist * k);
+      e.object.rotation.z = k * 12;
+      trailTimer -= 0.016;
+      if (trailTimer <= 0 && k < 1) {
+        trailTimer = 0.05;
+        this.spawnTrailRing(e.object.position, dir, color, scale);
+      }
+      if (k >= 1) {
+        onArrive();
+        this.spawnShockwaveColor(to, 5 * scale, color);
+        this.spawnSphere(color, to, 0.4, 3 * scale, 0.5);
+      }
+    }, ringMat);
+  }
+
+  private spawnTrailRing(at: THREE.Vector3, dir: THREE.Vector3, color: number, scale: number): void {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.4 * scale, 0.03, 6, 24),
+      new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
+    );
+    ring.position.copy(at);
+    ring.lookAt(at.clone().add(dir));
+    this.add(ring, 0.4, 0, (e, k) => {
+      e.object.scale.setScalar(1 + k * 2.5);
+      e.material.opacity = 0.8 * (1 - k);
+    });
+  }
+
+  /**
+   * "Bảo hộ": a translucent energy giant around the caster (ribcage, head, arms).
+   * @param follow caster's feet position and view yaw each frame
+   */
+  spirit(follow: () => { pos: THREE.Vector3; yaw: number }, durationSec: number): SpiritHandle {
+    const color = SPELL_COLORS['guardian-spirit']!;
+    // Normal blending so it stays visible against a bright daytime sky (additive would vanish).
+    const glow = (o: number, c = color) =>
+      new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false, side: THREE.DoubleSide });
+    const g = new THREE.Group();
+    const shell = glow(0.22);
+    const bone = glow(0.75, 0xd9c4ff);
+    g.add(new THREE.Mesh(new THREE.CapsuleGeometry(2.2, 3.2, 6, 18), shell).translateY(3.6));
+    for (let i = 0; i < 5; i++) {
+      const rib = new THREE.Mesh(new THREE.TorusGeometry(1.9 - Math.abs(i - 2) * 0.12, 0.08, 6, 24, Math.PI), bone);
+      rib.rotation.x = Math.PI / 2;
+      rib.position.y = 2.4 + i * 0.55;
+      g.add(rib);
+    }
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 3, 6), bone).translateY(3.4).translateZ(-1.6)); // spine
+    const head = new THREE.Group();
+    head.position.y = 6.7;
+    head.add(new THREE.Mesh(new THREE.SphereGeometry(1.1, 16, 12), shell));
+    for (const s of [-1, 1]) {
+      const horn = new THREE.Mesh(new THREE.ConeGeometry(0.22, 1.3, 6), bone);
+      horn.position.set(s * 0.7, 0.9, -0.1);
+      horn.rotation.z = -s * 0.5;
+      head.add(horn);
+      head.add(new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), glow(0.95)).translateX(s * 0.4).translateZ(0.95)); // eyes
+    }
+    g.add(head);
+    const arms: THREE.Group[] = [];
+    for (const s of [-1, 1]) {
+      g.add(new THREE.Mesh(new THREE.SphereGeometry(1, 12, 10), shell).translateX(s * 2.5).translateY(5.2));
+      const arm = new THREE.Group();
+      arm.position.set(s * 2.6, 5.2, 0);
+      const limb = new THREE.Mesh(new THREE.CapsuleGeometry(0.55, 3, 4, 10), shell);
+      limb.position.set(0, -1.2, 1.3);
+      limb.rotation.x = 1.0;
+      arm.add(limb);
+      arm.add(new THREE.Mesh(new THREE.SphereGeometry(0.75, 10, 8), bone).translateY(-2).translateZ(2.6)); // fist
+      g.add(arm);
+      arms.push(arm);
+    }
+    const wire = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(2.6, 1),
+      new THREE.MeshBasicMaterial({ color, wireframe: true, transparent: true, opacity: 0.3, depthWrite: false }),
+    );
+    wire.position.y = 3.8;
+    g.add(wire);
+    // Rising spirit flames.
+    const N = 70;
+    const fp = new Float32Array(N * 3);
+    const seeds = Array.from({ length: N }, () => ({ a: Math.random() * 6.28, r: 1.2 + Math.random() * 1.4, s: 0.5 + Math.random() }));
+    const flameGeo = new THREE.BufferGeometry();
+    flameGeo.setAttribute('position', new THREE.BufferAttribute(fp, 3));
+    const flames = new THREE.Points(
+      flameGeo,
+      new THREE.PointsMaterial({ color, size: 0.9, map: glowTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
+    );
+    g.add(flames);
+
+    let swingT = -1;
+    const mats = [shell, bone];
+    const base = mats.map((m) => m.opacity);
+    this.add(g, durationSec, 0, (e, k) => {
+      const f = follow();
+      g.position.copy(f.pos);
+      g.rotation.y = f.yaw + Math.PI;
+      const t = k * durationSec;
+      const fadeIn = Math.min(1, t / 0.4);
+      const fadeOut = Math.min(1, (durationSec - t) / 0.5);
+      const flicker = 0.85 + Math.sin(t * 13) * 0.08 + Math.sin(t * 29) * 0.05;
+      mats.forEach((m, i) => (m.opacity = base[i]! * fadeIn * fadeOut * flicker));
+      g.scale.setScalar(0.7 + 0.3 * fadeIn);
+      wire.rotation.y = t * 0.6;
+      head.position.y = 6.7 + Math.sin(t * 2) * 0.1;
+      seeds.forEach((sd, i) => {
+        const h = ((t * sd.s + i * 0.37) % 1.6) * 4;
+        fp.set([Math.sin(sd.a + t) * sd.r, 1 + h, Math.cos(sd.a + t) * sd.r], i * 3);
+      });
+      flameGeo.attributes.position!.needsUpdate = true;
+      // Giant arm punch while swinging.
+      if (swingT >= 0) {
+        swingT += 0.016 / 0.45;
+        const s = Math.sin(Math.min(swingT, 1) * Math.PI);
+        arms[1]!.rotation.x = -s * 1.4;
+        if (swingT >= 1) swingT = -1;
+      } else {
+        arms.forEach((a, i) => (a.rotation.x = Math.sin(t * 1.5 + i) * 0.08));
+      }
+    }, shell);
+    return {
+      swing: () => {
+        swingT = 0;
+      },
+    };
+  }
+
+  /** Little burst of sparks where the wand hits something. */
+  spark(at: THREE.Vector3, heavy = false): void {
+    const color = heavy ? SPELL_COLORS['guardian-spirit']! : 0xbff4ff;
+    this.spawnSphere(color, at, 0.1, heavy ? 2.2 : 0.7, 0.3);
+    if (heavy) this.spawnShockwaveColor(at.clone().setY(0), 4, color);
+  }
+
+  private spawnShockwaveColor(at: THREE.Vector3, radius: number, color: number): void {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.85, 1, 48),
+      new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false, side: THREE.DoubleSide }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(at.x, 0.2, at.z);
+    this.add(ring, 0.5, 0, (e, k) => {
+      e.object.scale.setScalar(0.5 + radius * Math.sqrt(k));
+      e.material.opacity = 1 - k;
+    });
   }
 
   /** Flat gold ring racing outward along the ground (empowered spells). */

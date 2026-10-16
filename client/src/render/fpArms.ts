@@ -43,6 +43,11 @@ export class FpArms {
   private releaseT = 0;
   private releaseOk = false;
   private afterRelease: 'rest' | 'channel' = 'rest';
+  /** 0..1 progress of a wand chop, or -1 when not swinging. */
+  private swingT = -1;
+  private swingHeavy = false;
+  private wandTip: THREE.Sprite;
+  private sq = new THREE.Quaternion();
   private walkPhase = 0;
   private tmpPos = new THREE.Vector3();
   private tmpQ = new THREE.Quaternion();
@@ -60,6 +65,7 @@ export class FpArms {
       this.root.add(mirror);
       this.arms.push(arm);
     }
+    this.wandTip = addWand(this.arms[0]!); // right hand holds the wand
     this.orbMat = new THREE.MeshBasicMaterial({ color: CHANNEL_COLOR, transparent: true });
     this.orb = new THREE.Mesh(new THREE.SphereGeometry(0.042, 16, 12), this.orbMat);
     const additive = (color: number) =>
@@ -102,6 +108,14 @@ export class FpArms {
     this.afterRelease = thenChannel ? 'channel' : 'rest';
     if (!success) this.setColor(0x777777, 0x555555);
     else if (color !== undefined) this.setColor(color, color);
+  }
+
+  /** Left click: chop downwards with the wand. Returns false if already mid-swing. */
+  swing(heavy = false): boolean {
+    if (this.swingT >= 0) return false;
+    this.swingT = 0;
+    this.swingHeavy = heavy;
+    return true;
   }
 
   /** Cast button released after a chain: lower the hands, no puff. */
@@ -154,6 +168,24 @@ export class FpArms {
       arm.position.x += i === 0 ? swayX : -swayX;
       arm.quaternion.copy(this.tmpQ);
     });
+
+    // Wand chop on the right arm: wind up (raise), slash down fast, recover.
+    const tipMat = this.wandTip.material as THREE.SpriteMaterial;
+    tipMat.opacity = 0.55 + Math.sin(time * 4) * 0.15;
+    if (this.swingT >= 0) {
+      this.swingT += dt / (this.swingHeavy ? 0.5 : 0.34);
+      const t = Math.min(this.swingT, 1);
+      let angle: number;
+      if (t < 0.3) angle = (t / 0.3) * 1.0; // raise
+      else if (t < 0.55) angle = 1.0 - ((t - 0.3) / 0.25) * 1.9; // chop down
+      else angle = -0.9 * (1 - (t - 0.55) / 0.45); // recover
+      const right = this.arms[0]!;
+      right.quaternion.multiply(this.sq.setFromAxisAngle(new THREE.Vector3(1, 0, 0), angle));
+      right.position.y += Math.max(0, angle) * 0.06;
+      right.position.z -= t > 0.3 && t < 0.7 ? 0.08 : 0;
+      tipMat.opacity = t > 0.3 && t < 0.6 ? 1 : tipMat.opacity;
+      if (this.swingT >= 1) this.swingT = -1;
+    }
 
     // Orb between the hands.
     const glowMat = this.halo.material as THREE.SpriteMaterial;
@@ -226,4 +258,30 @@ function buildArm(): THREE.Group {
   thumb.rotation.y = 0.5;
   g.add(sleeve, cuff, wrist, palm, fingers, thumb);
   return g;
+}
+
+/** Magic wand in the hand: dark wooden shaft, gold band, glowing crystal tip. Returns the tip glow. */
+function addWand(arm: THREE.Group): THREE.Sprite {
+  const wand = new THREE.Group();
+  wand.position.set(0.005, 0.03, -0.5); // in the palm
+  wand.rotation.x = 0.2; // tip points forward, slightly up
+  const wood = new THREE.MeshStandardMaterial({ color: 0x3a2516, roughness: 0.6 });
+  const gold = new THREE.MeshStandardMaterial({ color: 0xd8b04a, metalness: 0.8, roughness: 0.3 });
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.016, 0.28, 8).translate(0, 0.14, 0).rotateX(-Math.PI / 2), wood);
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.03, 8).rotateX(-Math.PI / 2), gold);
+  band.position.z = -0.2;
+  const tip = new THREE.Mesh(
+    new THREE.OctahedronGeometry(0.028, 0),
+    new THREE.MeshStandardMaterial({ color: 0x9ff3ff, emissive: 0x3fc8ff, emissiveIntensity: 2 }),
+  );
+  tip.position.z = -0.3;
+  tip.scale.set(1, 1, 1.6);
+  const glow = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: glowTexture(), color: 0x7fe0ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }),
+  );
+  glow.position.z = -0.3;
+  glow.scale.setScalar(0.14);
+  wand.add(shaft, band, tip, glow);
+  arm.add(wand);
+  return glow;
 }

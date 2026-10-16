@@ -112,6 +112,12 @@ Mọi class đều xây được tháp; Kỹ Sư xây rẻ hơn 30% và có thê
 | Pháp Sư | **Sấm sét** | Sét đánh nảy qua 5 mục tiêu | 3 |
 | Pháp Sư | **Thiên thạch** *(tối thượng)* | Thiên thạch lớn rơi sau 1.5s | 4 |
 | Pháp Sư | **Tạo khiên** | Khiên bao quanh bản thân, tồn tại 2s | 5 |
+| Pháp Sư | **Alô alô** | Đạn âm thanh (vòng sóng) bay tới điểm ngắm, nổ sóng âm | 6 |
+| Pháp Sư | **Bảo hộ** | Người khổng lồ năng lượng (kiểu Susanoo) bao quanh, nâng người chơi lên 3m trong 5s; không niệm phép được, chỉ chém tay (tầm 7m, sát thương ×2) | 7 |
+
+**Nhận diện gần đúng:** câu đọc chỉ cần **giống ≥70%** (so từng âm tiết, đúng thứ tự; sai dấu/thanh vẫn được tính gần đúng) là ra phép — miễn là nó rõ ràng gần với một câu hơn hẳn các câu khác (ví dụ "báo hộ" → Bảo hộ, "alo alo" → Alô alô; còn "quá đài" lơ lửng giữa "quá tải" và "pháo đài" thì không đoán).
+
+**Đánh tay:** **chuột trái** (điện thoại: nút CHÉM) — chém xuống bằng **đũa phép** cầm tay phải, tầm 3m.
 | Hộ Vệ | **Dựng khiên** | Tạo tường chắn chặn đường 6s | 1 |
 | Hộ Vệ | **Khiêu khích** | Quái xung quanh tấn công Hộ Vệ | 2 |
 | Hộ Vệ | **Đập đất** | Hất tung quái quanh mình | 3 |
@@ -179,6 +185,9 @@ Số lượng quái và máu quái **tăng theo số người chơi** trong phò
   - **Sân trong lát gạch đất**, quảng trường pha lê lát đá phiến, đường ngoài thành là đường đất. Sân chia 4 khu: **chợ** (cửa 1–2), **doanh trại** (2–3), **giếng & vườn** (3–4), **kho & chuồng** (4–1). Mỗi khu có cầu thang đá lên tường thành.
   - **Rừng hỗn hợp:** thông cao 15–23m, thông vừa, thông thấp, cây tán tròn, rất nhiều bụi cây và đá. Thân cây và đá lớn chặn người chơi.
   - Đã có bản dựng placeholder (khối hình học) trong `client/src/render/citadel.ts`; kích thước dùng chung ở `shared/src/balance.ts` (`CITADEL`).
+- **Bản đồ "Căn cứ Container" (concept Việt Nam, đã có bản dựng thử):** ban ngày nhiệt đới. Pháo đài là vòng **container chất đống**, khối bê tông sọc vàng, hàng rào gỗ, bao cát, 4 chòi canh gỗ mái đỏ/xanh, đèn lồng. **Trụ sở chính là siêu thị lớn** (biển "SIÊU THỊ", mái hiên sọc xanh-trắng, pin mặt trời, bồn nước). **Pha lê ở giữa sân** bê tông nứt, vây bao cát và giá gỗ. Rừng xung quanh là **dừa** và **cây bụi kiểu rừng ngập mặn** (rễ chống), đá xám lớn, biển ở xa. Chọn bối cảnh ở menu hoặc nút ⚙ (tải lại trang).
+- **Đồ vật phá được:** thùng gỗ, thùng phuy, bao tải, xe đẩy siêu thị, hình nộm… vỡ khi bị chém/trúng phép; **cây đổ** (2 nhát chém hoặc 1 phép nổ). Sau **25 giây**, nếu **không có người chơi trong vòng 18m**, đồ vật/cây mọc lại.
+- **Thanh máu Pha lê (trụ):** 1000 máu, hiện nổi trên đầu viên pha lê (chưa có quái nên chưa bị trừ).
 - **Bản đồ 2–3 (Giai đoạn 3):** hai đường song song; đường chia nhánh có cổng mà người chơi có thể đóng/mở.
 
 Bản đồ thiết kế theo dạng **lưới ô** (ô xây được / không xây được / đường đi) để đơn giản hóa việc đặt tháp và tìm đường.

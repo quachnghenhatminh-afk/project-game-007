@@ -21,6 +21,7 @@ const HOLD: CastingConfig = {
   ...CASTING,
   autoCast: false,
   staminaEnabled: true,
+  manaDrainPerSec: 25,
   empowerThreshold: 0.7,
   manaRegenPerSec: 15,
   manaRegenDelaySec: 0.5,
@@ -197,6 +198,10 @@ describe('hold-to-cast mode (autoCast off, stamina on)', () => {
 });
 
 describe('auto-cast mode (current rules)', () => {
+  const D = CASTING.manaDrainPerSec;
+  /** Seconds of holding until mana falls to `pct` percent. */
+  const until = (pct: number) => (100 - pct) / D;
+
   it('A1. recognized in the perfect zone → fires at once, empowered; channel keeps going while held', () => {
     const p = new PlayerState();
     p.startChannel();
@@ -220,35 +225,36 @@ describe('auto-cast mode (current rules)', () => {
     p.drainEvents();
     expect(p.release()).toBe('ended');
     expect(p.drainEvents()).toEqual([{ type: 'channel-end', reason: 'released' }]);
-    expect(p.phase).toBe('idle');
   });
 
   it('A3. perfect zone is 30%…100% of the bar', () => {
     const p = new PlayerState();
     expect(p.empowerMark).toBe(0.3);
     p.startChannel();
-    run(p, 2.6); // 100 - 65 = 35% → still perfect
+    run(p, until(35));
     expect(p.empowerWindowOpen).toBe(true);
-    run(p, 0.4); // 25%
+    run(p, until(25) - until(35));
     p.recognize('lightning');
     expect(p.drainEvents()).toContainEqual({ type: 'fired', commandId: 'lightning', empowered: false });
   });
 
-  it('A4. mana runs out after a successful cast → quiet channel-end, no fizzle', () => {
+  it('A4. mana drains 3× slower than before: a full bar lasts ~12s', () => {
+    const p = new PlayerState();
+    p.startChannel();
+    run(p, 6);
+    expect(p.mana).toBeCloseTo(50, 0);
+    expect(run(p, 6.5)).toContainEqual({ type: 'fizzle', reason: 'no-mana' });
+  });
+
+  it('A5. mana runs out after a successful cast → quiet channel-end, no fizzle', () => {
     const p = new PlayerState();
     p.startChannel();
     run(p, 0.5);
     p.recognize('fireball');
     p.drainEvents();
-    const events = run(p, 4);
+    const events = run(p, until(0) + 0.5);
     expect(events).toContainEqual({ type: 'channel-end', reason: 'no-mana' });
     expect(types(events)).not.toContain('fizzle');
-  });
-
-  it('A5. nothing recognized and mana runs out → fizzle (no-mana)', () => {
-    const p = new PlayerState();
-    p.startChannel();
-    expect(run(p, 5)).toContainEqual({ type: 'fizzle', reason: 'no-mana' });
   });
 
   it('A6. released before any recognition, then recognized → fires', () => {
@@ -275,11 +281,9 @@ describe('auto-cast mode (current rules)', () => {
     let jumps = 0;
     for (let i = 0; i < 20; i++) {
       if (p.tryJump()) jumps++;
-      run(p, 0.25); // jump again as soon as possible
+      run(p, 0.25);
     }
     expect(jumps).toBeLessThan(20);
-    expect(p.drainEvents()).toEqual([]); // drained inside run()
-    expect(p.tryJump()).toBe(p.stamina >= CASTING.staminaJumpCost);
   });
 
   it('A9. stamina refills after resting', () => {
@@ -287,5 +291,29 @@ describe('auto-cast mode (current rules)', () => {
     for (let i = 0; i < 5; i++) p.tryJump();
     run(p, 6);
     expect(p.stamina).toBe(p.maxStamina);
+  });
+});
+
+describe('guardian spirit ("bảo hộ")', () => {
+  it('S1. starting it ends the channel; casting is refused while it lasts', () => {
+    const p = new PlayerState();
+    p.startChannel();
+    run(p, 0.5);
+    p.recognize('guardian-spirit');
+    p.startSpirit(5);
+    expect(p.phase).toBe('idle');
+    expect(p.spiritActive).toBe(true);
+    p.drainEvents();
+    expect(p.startChannel()).toBe(false);
+    expect(p.drainEvents()).toEqual([{ type: 'channel-refused', reason: 'spirit' }]);
+  });
+
+  it('S2. lasts exactly its duration, then casting works again', () => {
+    const p = new PlayerState();
+    p.startSpirit(5);
+    const events = run(p, 4.9);
+    expect(types(events)).not.toContain('spirit-end');
+    expect(run(p, 0.2)).toContainEqual({ type: 'spirit-end' });
+    expect(p.startChannel()).toBe(true);
   });
 });

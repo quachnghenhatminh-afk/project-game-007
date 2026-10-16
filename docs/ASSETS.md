@@ -21,6 +21,27 @@ Quy ước kỹ thuật: xem `CLAUDE.md` mục 5 (.glb, 1 unit = 1m, Y lên, nh�
 | Chậu lửa | `prop-brazier.glb` | placeholder | Trụ đá + chậu sắt, cao ~1.5m |
 | Cột đá quanh pha lê (8 cái) | `prop-obelisk.glb` | placeholder | Cao ~3.2m, đỉnh gắn pha lê nhỏ |
 
+## Bản đồ "Căn cứ Container" (Việt Nam)
+
+| Asset | Tên file gợi ý | Trạng thái | Ghi chú |
+|---|---|---|---|
+| Container 20ft (nhiều màu) | `vn-container.glb` | placeholder | 6.06 × 2.6 × 2.44m, có thể chất 2 tầng |
+| Khối bê tông sọc vàng (T-wall) | `vn-concrete-block.glb` | placeholder | 1.35 × 2.3m |
+| Chòi canh gỗ | `vn-watchtower.glb` | placeholder | Sàn cao 5m, mái chóp đỏ/xanh |
+| Siêu thị (trụ sở) | `vn-supermarket.glb` | placeholder | 14 × 6.5 × 10m, biển SIÊU THỊ, mái hiên sọc, pin mặt trời |
+| Sạp hàng mái bạt | `vn-tarp-stall.glb` | placeholder | |
+| Bao cát, thùng phuy, thùng gỗ, xe đẩy | `vn-sandbags.glb`, `vn-barrel.glb`, `vn-crate.glb`, `vn-cart.glb` | placeholder | Thùng phuy/thùng gỗ/xe đẩy **phá được** |
+| Cột đèn lồng | `vn-lamp-post.glb` | placeholder | Cao ~3.5m |
+| Cây dừa (2–3 dáng) | `prop-palm-a.glb` | placeholder | Thân cong 7–11m, **ít polygon** (có ~500 cây) |
+| Cây rừng ngập mặn (rễ chống) | `prop-mangrove.glb` | placeholder | Cao ~4m |
+| Đá xám lớn | `prop-boulder.glb` | placeholder | |
+
+## Người chơi — đũa phép
+
+| Asset | Tên file | Trạng thái | Ghi chú |
+|---|---|---|---|
+| Đũa phép (cầm tay phải, góc nhìn 1) | `player-mage-wand.glb` | placeholder | Dài ~0.3m, đầu pha lê phát sáng. Animation tay: `attack` (chém xuống) |
+
 ## Giai đoạn 1 — Nhân vật, quái, tháp
 
 | Asset | Tên file | Trạng thái | Animation |

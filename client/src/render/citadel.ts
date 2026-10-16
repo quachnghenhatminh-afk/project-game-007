@@ -6,6 +6,9 @@ import { mergeStaticMeshes } from './mergeStatic.ts';
 import { boxGeo, cylGeo, scaleUv } from './geometry.ts';
 import { buildForest } from './forest.ts';
 import { STAIR_HALF_ARC, buildCourtyard, stairAngles } from './courtyard.ts';
+import { buildCrystal } from './crystal.ts';
+import type { GameMap, MapOptions } from './gameMap.ts';
+import type { Collider } from './gameMap.ts';
 
 // Map 1 "Thành Pha Lê": a round fortress with 4 arched gatehouses, tall towers,
 // a brick-paved courtyard with themed quarters, a giant crystal in the middle and
@@ -30,11 +33,7 @@ const BRAZIER_RADIUS = 11.5;
 const OBELISK_RADIUS = 7.5;
 const ROAD_TORCH_RADII = [38, 48, 58, 68];
 
-export interface Collider {
-  x: number;
-  z: number;
-  r: number;
-}
+export type { Collider } from './gameMap.ts';
 
 /** Point on the circle at angle a (a=0 → +Z). */
 export function polar(a: number, r: number, y = 0): THREE.Vector3 {
@@ -80,15 +79,13 @@ function structureColliders(): Collider[] {
   return out;
 }
 
-export interface Citadel {
+export interface Citadel extends GameMap {
   root: THREE.Group;
-  /** Round obstacles the player cannot walk through (towers, props, tree trunks…). */
-  colliders: Collider[];
-  update(dt: number, time: number): void;
 }
 
-/** @param lowQuality phones: thinner forest, fewer real torch lights */
-export function buildCitadel(scene: THREE.Scene, lowQuality = false): Citadel {
+/** Map 1 at night. lowQuality (phones): thinner forest, fewer real torch lights. */
+export function buildCitadel(scene: THREE.Scene, opts: MapOptions = {}): Citadel {
+  const lowQuality = opts.lowQuality ?? false;
   const root = new THREE.Group();
   scene.add(root);
   const torches = new Torches(scene);
@@ -289,46 +286,15 @@ export function buildCitadel(scene: THREE.Scene, lowQuality = false): Citadel {
   }
 
   // --- Courtyard props ------------------------------------------------------------
-  const courtyard = buildCourtyard({ stone, stoneDark, wood, iron, roof });
+  const courtyard = buildCourtyard({ stone, stoneDark, wood, iron, roof }, opts.destructibles);
   root.add(courtyard.group);
 
   // --- Crystal plaza ---------------------------------------------------------------
   add(new THREE.Mesh(cylGeo(PEDESTAL_RADIUS - 0.6, PEDESTAL_RADIUS, 1.2, 8, STONE_TILE), stoneDark).translateY(0.6));
   add(new THREE.Mesh(cylGeo(2.4, 2.8, 0.8, 8, STONE_TILE), stone).translateY(1.6));
 
-  const crystalMat = new THREE.MeshStandardMaterial({
-    color: 0x7fe9ff,
-    emissive: 0x1aa6d9,
-    emissiveIntensity: 1.6,
-    roughness: 0.15,
-    metalness: 0.1,
-    flatShading: true,
-    transparent: true,
-    opacity: 0.92,
-  });
-  const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(2, 0), crystalMat);
-  crystal.scale.set(1, 2.2, 1);
-  crystal.castShadow = true;
-  const crystalBaseY = 7;
-  crystal.position.y = crystalBaseY;
-  root.add(crystal);
-  const crystalGlow = new THREE.Sprite(
-    new THREE.SpriteMaterial({ map: glowTexture(), color: 0x5fd8ff, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.7 }),
-  );
-  crystalGlow.position.y = crystalBaseY;
-  crystalGlow.scale.setScalar(16);
-  root.add(crystalGlow);
-
-  const shards: THREE.Mesh[] = [];
-  for (let i = 0; i < 4; i++) {
-    const s = new THREE.Mesh(new THREE.OctahedronGeometry(0.45, 0), crystalMat);
-    s.scale.set(1, 1.8, 1);
-    root.add(s);
-    shards.push(s);
-  }
-  const glow = new THREE.PointLight(0x7fe8ff, 400, 50, 2);
-  glow.position.y = crystalBaseY;
-  root.add(glow);
+  const crystal = buildCrystal(root, 7, 1);
+  const crystalMat = crystal.material;
 
   const halo = new THREE.Mesh(
     new THREE.RingGeometry(4, 6.5, 48),
@@ -350,30 +316,47 @@ export function buildCitadel(scene: THREE.Scene, lowQuality = false): Citadel {
   }
   for (const a of BRAZIER_ANGLES) torches.add(polar(a, BRAZIER_RADIUS, 1.5), 'brazier', { light: true });
 
-  const forest = buildForest(7, lowQuality ? 0.45 : 1);
+  const forest = buildForest(7, lowQuality ? 0.45 : 1, opts.destructibles);
   root.add(forest.group);
 
   // Batch everything that never moves (keeps draw calls low on integrated GPUs).
-  const animated = new Set<THREE.Object3D>([crystal, ...shards]);
-  mergeStaticMeshes(root, (m) => animated.has(m));
+  const animated = new Set<THREE.Object3D>(crystal.animated);
+  mergeStaticMeshes(root, (m) => animated.has(m) || isDestructible(m));
   torches.finalize();
 
   return {
+    id: 'citadel',
+    environment: 'night',
     root,
     colliders: [...structureColliders(), ...courtyard.colliders, ...forest.colliders],
+    boxes: [],
+    collideExtra: collideRingWall,
+    spawn: { pos: new THREE.Vector3(0, 1.7, -14), yaw: Math.PI },
+    coreTop: crystal.top,
     update(_dt, time) {
-      crystal.rotation.y = time * 0.4;
-      crystal.position.y = crystalBaseY + Math.sin(time * 1.5) * 0.25;
-      crystalGlow.position.y = crystal.position.y;
-      glow.intensity = 380 + Math.sin(time * 2.3) * 60;
-      shards.forEach((s, i) => {
-        const a = time * 0.8 + (i * Math.PI) / 2;
-        s.position.set(Math.sin(a) * 3.6, crystalBaseY + Math.sin(time * 2 + i) * 0.6, Math.cos(a) * 3.6);
-        s.rotation.y = -time * 1.5;
-      });
+      crystal.update(time);
       torches.update(time);
     },
   };
+}
+
+/** The round curtain wall: solid except inside the 4 gate openings. */
+function collideRingWall(pos: THREE.Vector3, prevR: number, pr: number): void {
+  const r = Math.hypot(pos.x, pos.z);
+  const inner = C.wallRadius - WALL_HALF_THICKNESS - pr;
+  const outer = C.wallRadius + WALL_HALF_THICKNESS + pr;
+  if (r <= inner || r >= outer) return;
+  const a = Math.atan2(pos.x, pos.z);
+  if (angleToNearestGate(a) * C.wallRadius < C.gateWidth / 2 - pr) return;
+  const target = prevR < C.wallRadius ? inner : outer;
+  pos.x *= target / (r || 1);
+  pos.z *= target / (r || 1);
+}
+
+/** True for meshes that belong to a destructible prop (they stay separate objects). */
+export function isDestructible(o: THREE.Object3D): boolean {
+  for (let p: THREE.Object3D | null = o; p; p = p.parent) if (p.userData.destructible) return true;
+  return false;
 }
 
 /** Gatehouse front: a thick block with a round-topped arch cut through it. */

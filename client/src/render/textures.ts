@@ -203,6 +203,181 @@ export function grassTexture(): THREE.CanvasTexture {
   );
 }
 
+// --- Vietnam container base -------------------------------------------------------
+
+/** Cracked concrete slabs with dirt stains. One tile = 5m × 5m (2 × 2 slabs). */
+export function concreteSlabTexture(): THREE.CanvasTexture {
+  return cached('concrete', () =>
+    tiled(
+      canvasTexture(512, (ctx, s) => {
+        const r = rng(61);
+        ctx.fillStyle = '#6d6a63';
+        ctx.fillRect(0, 0, s, s);
+        const half = s / 2;
+        for (let y = 0; y < 2; y++) {
+          for (let x = 0; x < 2; x++) {
+            const l = 62 + r() * 10;
+            ctx.fillStyle = `hsl(${35 + r() * 10}, ${6 + r() * 6}%, ${l}%)`;
+            ctx.fillRect(x * half + 3, y * half + 3, half - 6, half - 6);
+          }
+        }
+        // Yellow-brown stains and dirt.
+        for (let i = 0; i < 60; i++) {
+          ctx.fillStyle = `rgba(${150 + r() * 40},${120 + r() * 30},${60 + r() * 20},${r() * 0.18})`;
+          ctx.beginPath();
+          ctx.arc(r() * s, r() * s, 8 + r() * 40, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // Cracks.
+        ctx.strokeStyle = 'rgba(40,38,34,0.55)';
+        ctx.lineWidth = 1.5;
+        for (let i = 0; i < 9; i++) {
+          let x = r() * s;
+          let y = r() * s;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          for (let k = 0; k < 6; k++) {
+            x += (r() - 0.5) * 50;
+            y += (r() - 0.5) * 50;
+            ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
+        grain(ctx, s, r, 0.12, 12000);
+      }),
+    ),
+  );
+}
+
+/** Corrugated steel (white, tinted by material color). One tile = 1m wide ribs × 1m. */
+export function corrugatedTexture(): THREE.CanvasTexture {
+  return cached('corrugated', () =>
+    tiled(
+      canvasTexture(256, (ctx, s) => {
+        const r = rng(71);
+        const ribs = 6;
+        for (let i = 0; i < ribs; i++) {
+          const g = ctx.createLinearGradient((i * s) / ribs, 0, ((i + 1) * s) / ribs, 0);
+          g.addColorStop(0, '#9a9a9a');
+          g.addColorStop(0.5, '#ffffff');
+          g.addColorStop(1, '#8a8a8a');
+          ctx.fillStyle = g;
+          ctx.fillRect((i * s) / ribs, 0, s / ribs, s);
+        }
+        // Rust streaks and scratches.
+        for (let i = 0; i < 30; i++) {
+          ctx.fillStyle = `rgba(120,60,20,${r() * 0.25})`;
+          ctx.fillRect(r() * s, r() * s, 2 + r() * 4, 10 + r() * 60);
+        }
+        grain(ctx, s, r, 0.1, 3000);
+      }),
+    ),
+  );
+}
+
+/** Concrete block with yellow hazard chevrons. One tile = one block face. */
+export function hazardConcreteTexture(): THREE.CanvasTexture {
+  return cached('hazard', () => {
+    const t = canvasTexture(256, (ctx, s) => {
+      const r = rng(83);
+      ctx.fillStyle = '#a9a69d';
+      ctx.fillRect(0, 0, s, s);
+      for (let i = 0; i < 40; i++) {
+        ctx.fillStyle = `rgba(80,75,65,${r() * 0.18})`;
+        ctx.beginPath();
+        ctx.arc(r() * s, r() * s, 4 + r() * 18, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, s * 0.55, s, s * 0.22);
+      ctx.clip();
+      for (let x = -s; x < s * 2; x += 40) {
+        ctx.fillStyle = '#e8b923';
+        ctx.beginPath();
+        ctx.moveTo(x, s * 0.55);
+        ctx.lineTo(x + 20, s * 0.55);
+        ctx.lineTo(x + 20 + s * 0.22, s * 0.77);
+        ctx.lineTo(x + s * 0.22, s * 0.77);
+        ctx.fill();
+      }
+      ctx.restore();
+      grain(ctx, s, r, 0.15, 5000);
+    });
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    return t;
+  });
+}
+
+/** Green/white awning stripes (vertical). */
+export function awningTexture(): THREE.CanvasTexture {
+  return cached('awning', () =>
+    tiled(
+      canvasTexture(128, (ctx, s) => {
+        for (let i = 0; i < 4; i++) {
+          ctx.fillStyle = i % 2 ? '#f4f1e6' : '#2f8a4e';
+          ctx.fillRect((i * s) / 4, 0, s / 4, s);
+        }
+      }),
+    ),
+  );
+}
+
+/** Shop sign with text (e.g. "SIÊU THỊ"). */
+export function signTexture(text: string, bg = '#c8282a', fg = '#ffffff'): THREE.CanvasTexture {
+  return cached(`sign:${text}:${bg}`, () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, 1024, 256);
+      ctx.strokeStyle = '#f2d34a';
+      ctx.lineWidth = 14;
+      ctx.strokeRect(10, 10, 1004, 236);
+      ctx.fillStyle = fg;
+      ctx.font = 'bold 150px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 512, 136);
+    }
+    const t = new THREE.CanvasTexture(canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  });
+}
+
+/** Sunny tropical ground: sandy soil with grass patches. One tile = 8m. */
+export function tropicalGroundTexture(): THREE.CanvasTexture {
+  return cached('tropical', () =>
+    tiled(
+      canvasTexture(512, (ctx, s) => {
+        const r = rng(97);
+        ctx.fillStyle = '#b68f55';
+        ctx.fillRect(0, 0, s, s);
+        for (let i = 0; i < 420; i++) {
+          const grass = r() < 0.6;
+          ctx.fillStyle = grass ? `rgba(${70 + r() * 40},${120 + r() * 50},${40 + r() * 20},${0.25 + r() * 0.3})` : `rgba(150,110,60,${r() * 0.3})`;
+          ctx.beginPath();
+          ctx.arc(r() * s, r() * s, 6 + r() * 34, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        for (let i = 0; i < 2500; i++) {
+          ctx.strokeStyle = `rgba(${90 + r() * 60},${150 + r() * 60},${50 + r() * 30},${0.2 + r() * 0.3})`;
+          const x = r() * s;
+          const y = r() * s;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + (r() - 0.5) * 4, y - 3 - r() * 6);
+          ctx.stroke();
+        }
+        grain(ctx, s, r, 0.1, 8000);
+      }),
+    ),
+  );
+}
+
 let glow: THREE.CanvasTexture | null = null;
 /** White radial falloff, for additive glows (torches, moon halo). */
 export function glowTexture(): THREE.CanvasTexture {

@@ -62,6 +62,106 @@ export function matchCommand(text: string, commands: readonly VoiceCommand[]): C
   return best?.match ?? null;
 }
 
+// --- Fuzzy matching ("70% giống, đúng thứ tự") -----------------------------------
+
+/** Accept a fuzzy match at or above this average syllable similarity. */
+export const FUZZY_THRESHOLD = 0.7;
+/** …and only if it beats the second-best spell by at least this much (avoids coin flips). */
+export const FUZZY_MARGIN = 0.1;
+/** Similarity given to syllables that differ only in tone or vowel marks ("tải"/"tài", "alô"/"alo"). */
+const MARKS_ONLY_SIMILARITY = 0.85;
+
+export interface FuzzyMatch extends CommandMatch {
+  /** 0..1, 1 = exact. */
+  score: number;
+}
+
+function levenshtein(a: string, b: string): number {
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let diag = prev[0]!;
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j]!;
+      prev[j] = Math.min(prev[j]! + 1, prev[j - 1]! + 1, diag + (a[i - 1] === b[j - 1] ? 0 : 1));
+      diag = tmp;
+    }
+  }
+  return prev[b.length]!;
+}
+
+/** Removes every Vietnamese mark: tones, circumflex/breve/horn, đ → d. */
+function bareSyllable(canonical: string): string {
+  return canonical
+    .replace(/\d$/, '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd');
+}
+
+/** 0..1 similarity of two canonical syllables. */
+export function syllableSimilarity(a: string, b: string): number {
+  if (a === b) return 1;
+  const full = 1 - levenshtein(a, b) / Math.max(a.length, b.length);
+  const ba = bareSyllable(a);
+  const bb = bareSyllable(b);
+  const bare = (1 - levenshtein(ba, bb) / Math.max(ba.length, bb.length, 1)) * MARKS_ONLY_SIMILARITY;
+  return Math.max(0, full, bare);
+}
+
+/**
+ * Best in-order similarity of `target` syllables against any window of `said`.
+ * Missing syllables count as 0, so half a phrase scores at most 0.5.
+ */
+export function phraseSimilarity(said: string[], target: string[]): number {
+  if (target.length === 0) return 0;
+  let best = 0;
+  const windows = Math.max(1, said.length - target.length + 1);
+  for (let start = 0; start < windows; start++) {
+    let sum = 0;
+    for (let i = 0; i < target.length; i++) {
+      const s = said[start + i];
+      if (s !== undefined) sum += syllableSimilarity(s, target[i]!);
+    }
+    best = Math.max(best, sum / target.length);
+  }
+  return best;
+}
+
+/**
+ * Exact match first; otherwise the spell whose phrase is ≥70% similar (in order)
+ * and clearly better than every other spell.
+ */
+export function fuzzyMatchCommand(
+  text: string,
+  commands: readonly VoiceCommand[],
+  threshold = FUZZY_THRESHOLD,
+  margin = FUZZY_MARGIN,
+): FuzzyMatch | null {
+  const exact = matchCommand(text, commands);
+  if (exact) return { ...exact, score: 1 };
+  const said = toSyllables(text);
+  if (said.length === 0) return null;
+  let best: FuzzyMatch | null = null;
+  let second = 0;
+  for (const command of commands) {
+    let cmdBest: FuzzyMatch | null = null;
+    for (const phrase of command.phrases) {
+      const score = phraseSimilarity(said, toSyllables(phrase));
+      if (!cmdBest || score > cmdBest.score) cmdBest = { command, phrase, score };
+    }
+    if (!cmdBest) continue;
+    if (!best || cmdBest.score > best.score) {
+      second = best?.score ?? 0;
+      best = cmdBest;
+    } else if (cmdBest.score > second) {
+      second = cmdBest.score;
+    }
+  }
+  if (!best || best.score < threshold || best.score - second < margin) return null;
+  return best;
+}
+
 function indexOfRun(haystack: string[], needle: string[]): number {
   if (needle.length === 0) return -1;
   outer: for (let i = 0; i + needle.length <= haystack.length; i++) {

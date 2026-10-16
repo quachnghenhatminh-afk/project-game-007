@@ -1,4 +1,4 @@
-// Balance data (towers, enemies). First-pass numbers from docs/GDD.md; tuned in Phase 1.
+﻿// Balance data (towers, enemies). First-pass numbers from docs/GDD.md; tuned in Phase 1.
 
 export type TowerId = 'arrow' | 'cannon' | 'frost';
 
@@ -32,8 +32,8 @@ export const CASTING = {
   autoCast: true,
   /** Stamina drain/regen on or off. */
   staminaEnabled: true,
-  /** Mana lost per second while channeling (cast button held): full bar ≈ 4s. */
-  manaDrainPerSec: 25,
+  /** Mana lost per second while channeling (cast button held): full bar ≈ 12s (3× slower than the first version). */
+  manaDrainPerSec: 25 / 3,
   /** Recognized while mana ≥ this fraction of max → empowered spell ("perfect" zone = 30%…100% of the bar). */
   empowerThreshold: 0.3,
   /** Empowered spells are this much bigger. */
@@ -66,6 +66,34 @@ export const SPELLS = {
   /** "Tạo khiên": bubble around the caster. */
   shieldDurationSec: 2,
   shieldRadius: 1.6,
+  /** "Bảo hộ": energy giant around the caster; lifts them, blocks casting, melee only. */
+  spiritDurationSec: 5,
+  spiritLiftM: 3,
+  /** "Alô alô": sound bullet speed (m/s). */
+  soundBulletSpeed: 45,
+  /** Destruction radius (m) at the impact point, before the empower scale. 0 = harmless to props. */
+  impactRadius: { fireball: 4, lightning: 2.5, meteor: 9, 'sound-blast': 3.5, frost: 0 } as Record<string, number>,
+} as const;
+
+/** Left-click wand chop. */
+export const MELEE = {
+  cooldownSec: 0.45,
+  range: 3,
+  /** Half-angle of the hit cone in front of the player (radians). */
+  arc: 0.75,
+  /** While the guardian spirit is active the giant reaches further. */
+  spiritRange: 7,
+} as const;
+
+/** The crystal (core) at the center of each map. Losing it = defeat (Phase 1). */
+export const CORE = { maxHp: 1000 } as const;
+
+/** Destructible props / trees. */
+export const DESTRUCTIBLES = {
+  /** Seconds before a destroyed object may come back… */
+  respawnSec: 25,
+  /** …and only when no player is closer than this (m). */
+  respawnClearRadius: 18,
 } as const;
 
 /** Circular citadel layout (meters). Shared so server pathing matches the client scene. */

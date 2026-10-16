@@ -1,6 +1,8 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import { CITADEL } from '@game/shared';
-import type { Collider } from './citadel.ts';
+import type { Collider } from './gameMap.ts';
+import type { Destructibles } from '../game/destructibles.ts';
+import { mergeStaticMeshes } from './mergeStatic.ts';
 import { boxGeo, cylGeo } from './geometry.ts';
 import { mulberry32 } from './forest.ts';
 
@@ -25,7 +27,7 @@ export interface CourtyardMats {
   roof: THREE.Material;
 }
 
-export function buildCourtyard(m: CourtyardMats): { group: THREE.Group; colliders: Collider[] } {
+export function buildCourtyard(m: CourtyardMats, destructibles?: Destructibles): { group: THREE.Group; colliders: Collider[] } {
   const group = new THREE.Group();
   const colliders: Collider[] = [];
   const rnd = mulberry32(99);
@@ -43,8 +45,25 @@ export function buildCourtyard(m: CourtyardMats): { group: THREE.Group; collider
     obj.position.set(Math.sin(a) * r, obj.position.y, Math.cos(a) * r);
     obj.rotation.y = a + Math.PI + turn;
     group.add(obj);
-    if (collide > 0) colliders.push({ x: obj.position.x, z: obj.position.z, r: collide });
+    let collider: Collider | null = null;
+    if (collide > 0) {
+      collider = { x: obj.position.x, z: obj.position.z, r: collide };
+      colliders.push(collider);
+    }
+    if (obj.userData.breakable) {
+      obj.userData.destructible = true; // keep it out of the big static merge
+      destructibles?.addProp(obj, Math.max(collide, 0.5), collider, obj.userData.debrisColor as number);
+    }
     return obj;
+  };
+  /** Wraps a prop so it can be smashed: merged into one object, flagged for Destructibles. */
+  const breakable = (obj: THREE.Object3D, debrisColor: number) => {
+    const g = new THREE.Group();
+    g.add(obj);
+    mergeStaticMeshes(g);
+    g.userData.breakable = true;
+    g.userData.debrisColor = debrisColor;
+    return g;
   };
   const mesh = (geo: THREE.BufferGeometry, material: THREE.Material, x = 0, y = 0, z = 0) => {
     const o = new THREE.Mesh(geo, material);
@@ -257,18 +276,18 @@ export function buildCourtyard(m: CourtyardMats): { group: THREE.Group; collider
   place(stall(cloth[0]!), market - d(16), 20, 0, 1.8);
   place(stall(cloth[1]!), market + d(2), 21, 0, 1.8);
   place(stall(cloth[3]!), market + d(20), 19.5, 0, 1.8);
-  place(crateStack(), market - d(5), 23.5, 0.4, 1.1);
-  place(sacks(), market + d(11), 23.5, -0.3, 0.8);
-  place(barrel(), market + d(28), 22, 0, 0.5);
-  place(barrel(), market + d(30), 22.9, 0, 0.5);
+  place(breakable(crateStack(), 0x8a6a45), market - d(5), 23.5, 0.4, 1.1);
+  place(breakable(sacks(), 0xb39a72), market + d(11), 23.5, -0.3, 0.8);
+  place(breakable(barrel(), 0x6a4a2e), market + d(28), 22, 0, 0.5);
+  place(breakable(barrel(), 0x6a4a2e), market + d(30), 22.9, 0, 0.5);
 
   // Barracks (gate 2–3)
   place(tent(cloth[1]!), barracks - d(18), 20.5, 0, 2.4);
   place(tent(cloth[0]!), barracks + d(18), 20.5, 0, 2.4);
   place(weaponRack(), barracks, 22.5, 0, 1.2);
-  for (const da of [-8, 0, 8]) place(dummy(), barracks + d(da), 15.5, 0, 0.35);
-  place(archeryTarget(), barracks + d(30), 17, 0.5, 0.8);
-  place(crateStack(), barracks - d(30), 22, 0.2, 1.1);
+  for (const da of [-8, 0, 8]) place(breakable(dummy(), 0xc9a64a), barracks + d(da), 15.5, 0, 0.35);
+  place(breakable(archeryTarget(), 0xc03030), barracks + d(30), 17, 0.5, 0.8);
+  place(breakable(crateStack(), 0x8a6a45), barracks - d(30), 22, 0.2, 1.1);
 
   // Well & garden (gate 3–4)
   place(well(), garden, 18, 0, 1.4);
@@ -282,9 +301,9 @@ export function buildCourtyard(m: CourtyardMats): { group: THREE.Group; collider
   // Storage (gate 4–1)
   place(cart(), storage - d(12), 19.5, 1.2, 1.6);
   place(shed(), storage + d(10), 23, 0, 2.2);
-  for (const [da, r] of [[-26, 22], [-24, 23], [-27, 23.2]] as const) place(barrel(), storage + d(da), r, 0, 0.5);
-  place(hayBale(), storage + d(26), 18.5, 0.3, 0.8);
-  place(hayBale(), storage + d(30), 19, -0.2, 0.8);
+  for (const [da, r] of [[-26, 22], [-24, 23], [-27, 23.2]] as const) place(breakable(barrel(), 0x6a4a2e), storage + d(da), r, 0, 0.5);
+  place(breakable(hayBale(), 0xc9a64a), storage + d(26), 18.5, 0.3, 0.8);
+  place(breakable(hayBale(), 0xc9a64a), storage + d(30), 19, -0.2, 0.8);
   place(firewood(), storage - d(2), 15.5, 0, 0.9);
 
   // Stairs up the wall in each quarter (local +X runs along the wall).

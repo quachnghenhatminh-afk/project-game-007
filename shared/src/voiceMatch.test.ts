@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { COMMANDS } from './commands.ts';
-import { buildVoskGrammar, canonicalSyllable, compareToPhrase, matchCommand } from './voiceMatch.ts';
+import { buildVoskGrammar, canonicalSyllable, compareToPhrase, fuzzyMatchCommand, matchCommand } from './voiceMatch.ts';
 
 describe('canonicalSyllable', () => {
   it('treats old and new tone placement as equal', () => {
@@ -46,6 +46,38 @@ describe('compareToPhrase', () => {
   });
   it('marks everything missed for empty input', () => {
     expect(compareToPhrase('', 'sấm sét').some((s) => s.ok)).toBe(false);
+  });
+});
+
+describe('fuzzyMatchCommand (70% similar, in order)', () => {
+  const id = (t: string) => fuzzyMatchCommand(t, COMMANDS)?.command.id ?? null;
+  it('still matches exact phrases with score 1', () => {
+    expect(fuzzyMatchCommand('hỏa cầu', COMMANDS)?.score).toBe(1);
+  });
+  it('accepts a wrong tone', () => {
+    expect(id('báo hộ')).toBe('guardian-spirit');
+    expect(id('hòa cầu')).toBe('fireball');
+  });
+  it('accepts "alo alo" (no circumflex) for "alô alô"', () => {
+    expect(id('alo alo')).toBe('sound-blast');
+  });
+  it('accepts a slightly wrong syllable', () => {
+    expect(id('thiên thách')).toBe('meteor');
+    expect(id('sấm xét')).toBe('lightning');
+  });
+  it('rejects half a phrase', () => {
+    expect(id('hỏa')).toBeNull();
+    expect(id('thiên')).toBeNull();
+  });
+  it('rejects ambiguous text instead of guessing ("quá đài": quá tải or pháo đài?)', () => {
+    expect(id('quá đài')).toBeNull();
+  });
+  it('requires the right order', () => {
+    expect(id('cầu hỏa')).toBeNull();
+  });
+  it('rejects unrelated speech', () => {
+    expect(id('xin chào các bạn')).toBeNull();
+    expect(id('[unk]')).toBeNull();
   });
 });
 

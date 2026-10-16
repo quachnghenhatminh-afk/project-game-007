@@ -1,9 +1,10 @@
-﻿import type * as THREE from 'three';
+﻿import * as THREE from 'three';
 import {
   CASTING,
   COMMANDS,
+  SPELLS,
+  fuzzyMatchCommand,
   getCommand,
-  matchCommand,
   type ClassId,
   type CommandMatch,
   type PlayerState,
@@ -12,7 +13,8 @@ import {
 import type { FpArms } from '../render/fpArms.ts';
 import type { Hud } from '../ui/hud.ts';
 import type { RecognitionOutcome, VoiceEngine, VoiceEngineId } from '../voice/types.ts';
-import { spellColor, type SpellEffects } from './spellEffects.ts';
+import { spellColor, type SpellEffects, type SpiritHandle } from './spellEffects.ts';
+import { Sfx } from '../audio/sfx.ts';
 
 // Glue between input, voice recognition, PlayerState rules, arms, effects and HUD.
 //
@@ -57,9 +59,14 @@ const FIZZLE_TEXT: Record<string, string> = {
 export class SpellCaster {
   /** Current voice input, or null when the mic/model is not ready (hotkeys still work). */
   voice: VoiceInput | null = null;
-  /** Class whose hotkeys 1–4 are active. */
+  /** Class whose hotkeys 1–7 are active. */
   classId: ClassId = 'mage';
   onAttempt: (a: CastAttempt) => void = () => {};
+  /** Guardian spirit started/ended: the owner lifts the player and slows them down. */
+  onSpirit: (active: boolean) => void = () => {};
+  /** The running spirit visual (melee uses it to swing the giant's arm). */
+  spirit: SpiritHandle | null = null;
+  private humStop: (() => void) | null = null;
 
   private token = 0;
   private listening = false;
@@ -145,7 +152,12 @@ export class SpellCaster {
           this.arms.startChannel();
           break;
         case 'channel-refused':
+          if (e.reason === 'spirit') {
+            this.hud.flash('Đang Bảo hộ — dùng chuột trái để chém', '#c9a8ff');
+            Sfx.denied();
+          }
           if (e.reason === 'no-mana') {
+            Sfx.denied();
             this.hud.flash('Không đủ mana', '#6fc3ff');
             this.hud.flashBar('mana');
           }
@@ -159,11 +171,17 @@ export class SpellCaster {
           const chaining = this.state.phase === 'channeling'; // button still held
           if (!chaining) this.stopListening();
           const scale = e.empowered ? CASTING.empowerScale : 1;
-          if (getCommand(e.commandId)?.selfCast) {
-            const cam = this.camera;
+          const cam = this.camera;
+          if (e.commandId === 'guardian-spirit') {
+            this.state.startSpirit(SPELLS.spiritDurationSec); // also ends the channel
+          } else if (e.commandId === 'mage-shield') {
             this.effects.shield(() => cam.position.clone().setY(cam.position.y - EYE_HEIGHT), scale);
+            Sfx.shieldUp();
           } else {
-            this.effects.cast(e.commandId, this.effects.aimPoint(this.camera), scale);
+            const from = cam.position.clone().add(new THREE.Vector3(0, -0.25, 0).applyQuaternion(cam.quaternion)).addScaledVector(this.forward(), 0.8);
+            this.effects.cast(e.commandId, this.effects.aimPoint(cam), scale, from);
+            if (e.commandId === 'sound-blast') Sfx.soundBullet();
+            else Sfx.castWhoosh(e.empowered);
           }
           this.arms.release(true, spellColor(e.commandId), chaining);
           this.hud.setCharged(null);
@@ -176,6 +194,7 @@ export class SpellCaster {
           this.stopListening();
           this.arms.release(false);
           this.effects.fizzle(this.camera);
+          Sfx.fizzle();
           this.hud.setCharged(null);
           this.hud.flash(FIZZLE_TEXT[e.reason] ?? 'Niệm hỏng', e.reason === 'exhausted' ? '#ffb347' : '#aaaaaa');
           if (e.reason === 'exhausted') this.hud.flashBar('stamina');
@@ -196,13 +215,35 @@ export class SpellCaster {
         case 'jump-refused':
           this.hud.flashBar('stamina');
           break;
+        case 'spirit-start': {
+          const cam = this.camera;
+          this.spirit = this.effects.spirit(() => {
+            const yaw = new THREE.Euler().setFromQuaternion(cam.quaternion, 'YXZ').y;
+            return { pos: cam.position.clone().setY(Math.max(0, cam.position.y - EYE_HEIGHT - SPELLS.spiritLiftM)), yaw };
+          }, e.durationSec);
+          Sfx.spiritRise();
+          this.onSpirit(true);
+          break;
+        }
+        case 'spirit-end':
+          this.spirit = null;
+          Sfx.spiritEnd();
+          this.hud.flash('Bảo hộ kết thúc', '#c9a8ff');
+          this.onSpirit(false);
+          break;
         case 'awaiting-result':
           break;
       }
     }
 
-    // Aim ring follows the crosshair while casting; gold and bigger for an empowered spell.
     const s = this.state;
+    // Magical hum while channeling.
+    if (s.phase === 'channeling' && !this.humStop) this.humStop = Sfx.channelLoop();
+    if (s.phase !== 'channeling' && this.humStop) {
+      this.humStop();
+      this.humStop = null;
+    }
+    // Aim ring follows the crosshair while casting; gold and bigger for an empowered spell.
     if (s.phase === 'idle') {
       this.effects.showAimRing(null);
     } else {
@@ -295,7 +336,12 @@ export class SpellCaster {
   }
 
   private match(text: string): CommandMatch | null {
-    return text ? matchCommand(text, this.commands) : null;
+    // Exact phrase, or ≥70% similar in the right order (see fuzzyMatchCommand).
+    return text ? fuzzyMatchCommand(text, this.commands) : null;
+  }
+
+  private forward(): THREE.Vector3 {
+    return new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
   }
 
   private phrase(id: string): string {

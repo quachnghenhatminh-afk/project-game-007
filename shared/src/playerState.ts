@@ -21,7 +21,7 @@ export type FizzleReason = 'no-mana' | 'misheard' | 'exhausted' | 'cancelled';
 
 export type CastEvent =
   | { type: 'channel-start' }
-  | { type: 'channel-refused'; reason: 'no-mana' | 'busy' }
+  | { type: 'channel-refused'; reason: 'no-mana' | 'busy' | 'spirit' }
   | { type: 'charged'; commandId: string; empowered: boolean }
   | { type: 'awaiting-result' }
   | { type: 'fired'; commandId: string; empowered: boolean }
@@ -29,7 +29,10 @@ export type CastEvent =
   | { type: 'tap-cancelled' }
   /** Channel ended after at least one successful cast (button released or mana ran out). */
   | { type: 'channel-end'; reason: 'released' | 'no-mana' }
-  | { type: 'jump-refused' };
+  | { type: 'jump-refused' }
+  /** Guardian spirit ("bảo hộ") began / ended. */
+  | { type: 'spirit-start'; durationSec: number }
+  | { type: 'spirit-end' };
 
 export type ReleaseResult = 'fired' | 'awaiting' | 'tap' | 'ended' | 'none';
 
@@ -48,6 +51,8 @@ export class PlayerState {
   channelTime = 0;
   /** Spells cast during the current channel (auto-cast chains). */
   castsThisChannel = 0;
+  /** Seconds left of the guardian spirit; > 0 = lifted, no casting, melee only. */
+  spiritTime = 0;
   sprinting = false;
 
   private sprintLocked = false;
@@ -84,8 +89,27 @@ export class PlayerState {
     return e;
   }
 
+  get spiritActive(): boolean {
+    return this.spiritTime > 0;
+  }
+
+  /** Starts the guardian spirit; ends any channel in progress (casting is blocked while it lasts). */
+  startSpirit(durationSec: number): void {
+    if (this.phase === 'channeling' || this.phase === 'resolving') {
+      this.phase = 'idle';
+      this.manaRegenWait = this.cfg.manaRegenDelaySec;
+      this.emit({ type: 'channel-end', reason: 'released' });
+    }
+    this.spiritTime = durationSec;
+    this.emit({ type: 'spirit-start', durationSec });
+  }
+
   /** Right mouse pressed. */
   startChannel(): boolean {
+    if (this.spiritActive) {
+      this.emit({ type: 'channel-refused', reason: 'spirit' });
+      return false;
+    }
     if (this.phase !== 'idle') {
       this.emit({ type: 'channel-refused', reason: 'busy' });
       return false;
@@ -189,6 +213,10 @@ export class PlayerState {
 
   /** @param wantsSprint sprint key held while moving */
   update(dt: number, wantsSprint = false): void {
+    if (this.spiritTime > 0) {
+      this.spiritTime = Math.max(0, this.spiritTime - dt);
+      if (this.spiritTime === 0) this.emit({ type: 'spirit-end' });
+    }
     // --- Casting ---
     if (this.phase === 'channeling') {
       this.channelTime += dt;

@@ -9,8 +9,8 @@ export interface VoiceCommand {
   id: string;
   phrases: readonly string[];
   classId: ClassId;
-  /** Fallback key 1–5, or null for commands without a hotkey. */
-  hotkey: 1 | 2 | 3 | 4 | 5 | null;
+  /** Fallback key 1–7, or null for commands without a hotkey. */
+  hotkey: 1 | 2 | 3 | 4 | 5 | 6 | 7 | null;
   costMana: number;
   cooldownMs: number;
   isUltimate?: boolean;
@@ -34,6 +34,10 @@ export const COMMANDS: readonly VoiceCommand[] = [
   { id: 'meteor', phrases: ['thiên thạch'], classId: 'mage', hotkey: 4, costMana: 80, cooldownMs: 45000, isUltimate: true },
   /** Self-cast: a bubble shield around the caster for 2s (no aiming). */
   { id: 'mage-shield', phrases: ['tạo khiên'], classId: 'mage', hotkey: 5, costMana: 20, cooldownMs: 4000, selfCast: true },
+  /** Sound bullet: a ring-wave projectile flying to the aim point. (\lo\ is not in the Vosk vocab, \lô\ is.) */
+  { id: 'sound-blast', phrases: ['alô alô', 'a lô a lô'], classId: 'mage', hotkey: 6, costMana: 15, cooldownMs: 1500 },
+  /** Guardian spirit (Susanoo-like): lifts the caster 3m for 5s; no casting, melee only. */
+  { id: 'guardian-spirit', phrases: ['bảo hộ'], classId: 'mage', hotkey: 7, costMana: 60, cooldownMs: 20000, selfCast: true },
 
   { id: 'raise-shield', phrases: ['dựng khiên'], classId: 'guardian', hotkey: 1, costMana: 25, cooldownMs: 10000 },
   { id: 'taunt', phrases: ['khiêu khích'], classId: 'guardian', hotkey: 2, costMana: 15, cooldownMs: 8000 },

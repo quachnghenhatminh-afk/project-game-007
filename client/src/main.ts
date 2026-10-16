@@ -1,33 +1,49 @@
-import { PlayerState } from '@game/shared';
+﻿import { CORE, PlayerState, SPELLS } from '@game/shared';
 import { createWorld } from './render/world.ts';
-import { buildNightEnvironment } from './render/environment.ts';
+import { buildEnvironment } from './render/environment.ts';
 import { buildCitadel } from './render/citadel.ts';
+import { buildVnBase } from './render/vnBase.ts';
+import { MAP_NAMES, type GameMap } from './render/gameMap.ts';
 import { FpArms } from './render/fpArms.ts';
 import { FpsController } from './input/fpsController.ts';
 import { TouchControls, isTouchDevice } from './input/touchControls.ts';
 import { SpellEffects } from './game/spellEffects.ts';
 import { SpellCaster } from './game/spellCaster.ts';
+import { Destructibles } from './game/destructibles.ts';
+import { MeleeAttack } from './game/melee.ts';
 import { Hud } from './ui/hud.ts';
+import { CoreBar } from './ui/coreBar.ts';
+import { Settings, applySavedVolume, chosenMap, switchMap } from './ui/settings.ts';
+import { Sfx } from './audio/sfx.ts';
 import { isWebSpeechSupported } from './voice/webSpeechEngine.ts';
 import { defaultVoiceChoice, setupVoice, type VoiceChoice } from './voice/voiceSetup.ts';
 
-// Playable prototype (desktop + mobile): night citadel, voice spellcasting, HUD.
-// This is what `pnpm build:itch` packages for itch.io.
+// Playable prototype (desktop + mobile): two maps, voice spellcasting, wand melee,
+// destructible trees/props, HUD. This is what `pnpm build:itch` packages for itch.io.
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const touch = isTouchDevice();
 document.body.classList.toggle('touch', touch);
+const mapId = chosenMap();
+applySavedVolume();
 
 // --- World ----------------------------------------------------------------------
 const world = createWorld($('view'), touch);
-const env = buildNightEnvironment(world.scene, world.fpScene);
-const citadel = buildCitadel(world.scene, touch);
-const player = new FpsController(world.camera, world.renderer.domElement, citadel.colliders);
+const destructibles = new Destructibles(world.scene);
+const map: GameMap =
+  mapId === 'vn-base'
+    ? buildVnBase(world.scene, { lowQuality: touch, destructibles })
+    : buildCitadel(world.scene, { lowQuality: touch, destructibles });
+const env = buildEnvironment(world.scene, world.fpScene, map.environment);
+const player = new FpsController(world.camera, world.renderer.domElement, map, map.spawn);
 const effects = new SpellEffects(world.scene);
 const arms = new FpArms(world.fpScene);
 const state = new PlayerState();
 const hud = new Hud(document.body, state);
 const caster = new SpellCaster(state, arms, effects, hud, world.camera);
+const melee = new MeleeAttack(state, arms, effects, destructibles, caster, world.camera);
+const core = { hp: CORE.maxHp, max: CORE.maxHp };
+const coreBar = new CoreBar(document.body, world.camera, map.coreTop, () => core, touch ? 112 : 30);
 player.sprintAllowed = () => state.canSprint;
 player.jumpAllowed = () => state.tryJump();
 let fogHintAt = 0;
@@ -36,16 +52,46 @@ player.onBlockedByFog = () => {
   fogHintAt = performance.now();
 };
 
+// Guardian spirit: float 3m up, move a bit slower.
+caster.onSpirit = (active) => {
+  player.lift = active ? SPELLS.spiritLiftM : 0;
+  player.speedScale = active ? 0.7 : 1;
+};
+// Spells landing: break props / fell trees, explosion sounds by distance.
+effects.onImpact = (id, point, radius) => {
+  const dist = world.camera.position.distanceTo(point);
+  if (radius > 0) destructibles.damageSphere(point, radius, 3);
+  if (id === 'sound-blast') Sfx.sonicImpact(dist);
+  else Sfx.explosion(Math.max(radius, 2), dist);
+};
+destructibles.onEvent = (e) => {
+  const dist = world.camera.position.distanceTo(e.pos);
+  if (e.type === 'tree-fall') Sfx.treeFall(dist);
+  else if (e.type === 'prop-break') Sfx.breakProp(dist);
+};
+
 world.onUpdate((dt, time) => {
   player.update(dt);
   caster.update(dt, player.wantsSprint);
+  melee.update(dt);
   env.update(dt, time, world.camera);
-  citadel.update(dt, time);
+  map.update(dt, time);
   effects.update(dt);
+  destructibles.update(dt, [world.camera.position]);
   arms.update(dt, time, world.camera, player.speed);
   hud.update();
+  coreBar.update();
 });
 world.start();
+
+// --- Settings (gear, top-right) ------------------------------------------------------
+const settings = new Settings(mapId);
+settings.onToggle = (open) => {
+  if (open) {
+    caster.cancel();
+    if (!touch && player.isLocked) player.controls.unlock();
+  }
+};
 
 // --- Start menu -----------------------------------------------------------------
 if (!isWebSpeechSupported()) {
@@ -54,11 +100,16 @@ if (!isWebSpeechSupported()) {
 }
 const preferred = defaultVoiceChoice(touch);
 document.querySelector<HTMLInputElement>(`input[name="voice"][value="${preferred}"]`)!.checked = true;
+$('map-select').innerHTML = (Object.keys(MAP_NAMES) as Array<keyof typeof MAP_NAMES>)
+  .map((id) => `<option value="${id}" ${id === mapId ? 'selected' : ''}>${MAP_NAMES[id]}</option>`)
+  .join('');
+$('map-select').addEventListener('change', (e) => switchMap((e.target as HTMLSelectElement).value as keyof typeof MAP_NAMES));
 
 let started = false;
 $('btn-start').addEventListener('click', () => {
   if (started) return;
   started = true;
+  Sfx.unlock(); // browsers only allow audio after a click
   const choice = (document.querySelector<HTMLInputElement>('input[name="voice"]:checked')?.value ?? 'off') as VoiceChoice;
   // Everything that needs the click's user activation happens synchronously here.
   if (touch) {
@@ -66,7 +117,7 @@ $('btn-start').addEventListener('click', () => {
       () => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape').catch(() => {}),
       () => {},
     );
-    new TouchControls(document.body, player, caster);
+    new TouchControls(document.body, player, caster, () => melee.attack());
   } else {
     player.lock();
   }
@@ -76,13 +127,13 @@ $('btn-start').addEventListener('click', () => {
 
 async function startVoice(choice: VoiceChoice): Promise<void> {
   if (choice === 'off') {
-    toast(touch ? 'Không dùng giọng nói — chạm nút 1–5 để niệm phép' : 'Không dùng giọng nói — giữ chuột phải + phím 1–5', null, 5000);
+    toast(touch ? 'Không dùng giọng nói — chạm nút 1–7 để niệm phép' : 'Không dùng giọng nói — giữ chuột phải + phím 1–7', null, 5000);
     return;
   }
   toast('Đang chuẩn bị giọng nói…', null);
   const res = await setupVoice(choice, (text, f) => toast(text, f));
   caster.voice = res.voice;
-  if (res.error) toast(`${res.error} Vẫn chơi được bằng ${touch ? 'nút' : 'phím'} 1–5.`, null, 9000, true);
+  if (res.error) toast(`${res.error} Vẫn chơi được bằng ${touch ? 'nút' : 'phím'} 1–7.`, null, 9000, true);
   else toast(`Giọng nói sẵn sàng! ${touch ? 'Giữ NIỆM' : 'Giữ chuột phải'} rồi đọc thần chú.`, null, 4000);
 }
 
@@ -106,11 +157,13 @@ if (!touch) {
   player.controls.addEventListener('lock', () => pause.classList.add('hidden'));
   player.controls.addEventListener('unlock', () => {
     caster.cancel();
-    if (started) pause.classList.remove('hidden');
+    if (started && !settings.isOpen) pause.classList.remove('hidden');
   });
   window.addEventListener('contextmenu', (e) => e.preventDefault());
   window.addEventListener('mousedown', (e) => {
-    if (e.button === 2 && player.isLocked) caster.press();
+    if (!player.isLocked) return;
+    if (e.button === 0) melee.attack();
+    else if (e.button === 2) caster.press();
   });
   window.addEventListener('mouseup', (e) => {
     if (e.button === 2) caster.release();
@@ -118,11 +171,13 @@ if (!touch) {
   window.addEventListener('keydown', (e) => {
     if (e.repeat || !player.isLocked) return;
     if (e.code === 'KeyV') caster.press();
-    else if (/^Digit[1-5]$/.test(e.code)) caster.hotkey(Number(e.code.slice(5)));
+    else if (/^Digit[1-7]$/.test(e.code)) caster.hotkey(Number(e.code.slice(5)));
   });
   window.addEventListener('keyup', (e) => {
     if (e.code === 'KeyV') caster.release();
   });
 }
 window.addEventListener('blur', () => caster.cancel());
-if (import.meta.env.DEV) Object.assign(window, { __world: world, __caster: caster, __state: state, __player: player });
+if (import.meta.env.DEV) {
+  Object.assign(window, { __world: world, __caster: caster, __state: state, __player: player, __melee: melee, __destructibles: destructibles, __effects: effects, __arms: arms });
+}

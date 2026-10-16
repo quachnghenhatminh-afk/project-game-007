@@ -34,7 +34,7 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 const world = createWorld($('view'));
 const env = buildNightEnvironment(world.scene, world.fpScene);
 const citadel = buildCitadel(world.scene);
-const player = new FpsController(world.camera, world.renderer.domElement, citadel.colliders);
+const player = new FpsController(world.camera, world.renderer.domElement, citadel, citadel.spawn);
 const effects = new SpellEffects(world.scene);
 const arms = new FpArms(world.fpScene);
 const state = new PlayerState();
@@ -84,7 +84,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyV') {
     e.preventDefault();
     caster.press();
-  } else if (/^Digit[1-5]$/.test(e.code)) {
+  } else if (/^Digit[1-7]$/.test(e.code)) {
     caster.hotkey(Number(e.code.slice(5)));
   }
 });

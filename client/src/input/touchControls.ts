@@ -7,7 +7,8 @@ import type { SpellCaster } from '../game/spellCaster.ts';
 //   right half – drag to look
 //   NIỆM       – hold to channel (same as right mouse), speak the spell
 //   ⤒          – jump
-//   1–5        – spell buttons: tap while holding NIỆM, or tap alone to cast at once
+//   1–7        – spell buttons: tap while holding NIỆM, or tap alone to cast at once
+//   CHÉM       – wand chop (left mouse on desktop)
 
 const CSS = `
 .tc { position: absolute; inset: 0; z-index: 5; touch-action: none; user-select: none; -webkit-user-select: none; }
@@ -26,12 +27,13 @@ const CSS = `
 .tc-cast { right: 16px; bottom: 16px; width: 84px; height: 84px; font-size: 15px; border-color: #8cc8ff;
   box-shadow: 0 0 14px rgba(80,160,255,0.6); }
 .tc-jump { right: 236px; bottom: 16px; width: 58px; height: 58px; font-size: 24px; }
+.tc-attack { right: 316px; bottom: 18px; width: 64px; height: 64px; font-size: 13px; border-color: #ffd27a; }
 .tc-spell { width: 46px; height: 46px; font-size: 9px; line-height: 1.05; text-align: center; padding: 2px; box-sizing: border-box; flex-direction: column; }
 .tc-spell b { display: block; font-size: 14px; }
 `;
 
 export class TouchControls {
-  constructor(container: HTMLElement, player: FpsController, caster: SpellCaster) {
+  constructor(container: HTMLElement, player: FpsController, caster: SpellCaster, onAttack: () => void = () => {}) {
     if (!document.getElementById('tc-style')) {
       const style = document.createElement('style');
       style.id = 'tc-style';
@@ -42,7 +44,7 @@ export class TouchControls {
     root.className = 'tc';
     root.innerHTML = `<div class="tc-left"></div><div class="tc-right"></div>
       <div class="tc-stick"><div class="tc-knob"></div></div>
-      <div class="tc-btn tc-cast">NIỆM</div><div class="tc-btn tc-jump">⤒</div>`;
+      <div class="tc-btn tc-cast">NIỆM</div><div class="tc-btn tc-jump">⤒</div><div class="tc-btn tc-attack">⚔<br>CHÉM</div>`;
     container.appendChild(root);
     player.touch.active = true;
 
@@ -140,17 +142,21 @@ export class TouchControls {
       },
     );
     hold(q('.tc-jump'), () => (player.touch.jump = true));
+    hold(q('.tc-attack'), onAttack);
 
     // Spell buttons in an arc above NIỆM.
     commandsForClass('mage', false).forEach((c, i, all) => {
       const btn = document.createElement('div');
       btn.className = 'tc-btn tc-spell';
       btn.innerHTML = `<b>${c.hotkey}</b>${c.phrases[0]}`;
-      // Arc around NIỆM from straight up (90°) to almost left (170°), radius 128px.
-      const a = Math.PI * (0.5 + (i / Math.max(1, all.length - 1)) * 0.44);
+      // Two rings around NIỆM: spells 1–4 close (radius 120), 5–7 further out (radius 180).
+      const inner = i < 4;
+      const k = inner ? i / 3 : (i - 4) / Math.max(1, all.length - 5);
+      const a = Math.PI * (inner ? 0.5 + k * 0.44 : 0.56 + k * 0.33);
+      const radius = inner ? 120 : 180;
       const castCenter = 16 + 42; // NIỆM: 16px from the edges, 84px wide
-      btn.style.right = `${castCenter - 23 - Math.cos(a) * 128}px`;
-      btn.style.bottom = `${castCenter - 23 + Math.sin(a) * 128}px`;
+      btn.style.right = `${castCenter - 23 - Math.cos(a) * radius}px`;
+      btn.style.bottom = `${castCenter - 23 + Math.sin(a) * radius}px`;
       root.appendChild(btn);
       hold(btn, () => {
         if (castHeld) {

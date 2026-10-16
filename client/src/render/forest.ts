@@ -1,6 +1,7 @@
 ﻿import * as THREE from 'three';
 import { CITADEL } from '@game/shared';
-import type { Collider } from './citadel.ts';
+import type { Collider } from './gameMap.ts';
+import type { Destructibles } from '../game/destructibles.ts';
 
 // Mixed forest: tall/medium/short pines, round broadleaf trees, lots of bushes
 // and rocks. Every kind is one InstancedMesh, so the whole forest costs ~10 draw calls.
@@ -21,7 +22,10 @@ interface Spot {
 }
 
 /** @param density 0..1 multiplier on how many trees/bushes/rocks are placed (phones use less). */
-export function buildForest(seed = 7, density = 1): Forest {
+/** Trees closer than this to the center can be felled (the player can't reach further anyway). */
+const DESTRUCTIBLE_RADIUS = 100;
+
+export function buildForest(seed = 7, density = 1, destructibles?: Destructibles): Forest {
   const rnd = mulberry32(seed);
   const group = new THREE.Group();
   const colliders: Collider[] = [];
@@ -70,8 +74,15 @@ export function buildForest(seed = 7, density = 1): Forest {
     group.add(m);
     return m;
   };
-  const addTrunkCollider = (x: number, z: number, r: number) => {
-    if (Math.hypot(x, z) < C.playAreaRadius + 2) colliders.push({ x, z, r });
+  const addTrunkCollider = (x: number, z: number, r: number): Collider | null => {
+    if (Math.hypot(x, z) >= C.playAreaRadius + 2) return null;
+    const c: Collider = { x, z, r };
+    colliders.push(c);
+    return c;
+  };
+  /** Called after a tree's instances are written, so their matrices/colors can be captured. */
+  const registerTree = (x: number, z: number, h: number, parts: Array<{ mesh: THREE.InstancedMesh; index: number }>, collider: Collider | null) => {
+    if (destructibles && Math.hypot(x, z) < DESTRUCTIBLE_RADIUS) destructibles.addTree(new THREE.Vector3(x, 0, z), h, parts, collider);
   };
 
   // --- Pines: tall, medium, short share three instanced meshes -----------------
@@ -99,7 +110,8 @@ export function buildForest(seed = 7, density = 1): Forest {
     lower.setColorAt(i, col);
     middle.setColorAt(i, col.offsetHSL(0, 0, 0.03));
     upper.setColorAt(i, col.offsetHSL(0, 0, 0.03));
-    if (h > 5) addTrunkCollider(x, z, tw + 0.15);
+    const collider = h > 5 ? addTrunkCollider(x, z, tw + 0.15) : null;
+    registerTree(x, z, h, [trunks, lower, middle, upper].map((mesh) => ({ mesh, index: i })), collider);
   });
 
   // --- Broadleaf trees: trunk + 3 leafy blobs ---------------------------------
@@ -118,7 +130,8 @@ export function buildForest(seed = 7, density = 1): Forest {
       bLeaves.setMatrixAt(i * 3 + k, m4.compose(p, q, s.set(rr, rr * 0.85, rr)));
       bLeaves.setColorAt(i * 3 + k, col.offsetHSL(0, 0, (rnd() - 0.5) * 0.04));
     }
-    addTrunkCollider(x, z, 0.45);
+    const collider = addTrunkCollider(x, z, 0.45);
+    registerTree(x, z, h + 2, [{ mesh: bTrunks, index: i }, ...[0, 1, 2].map((k) => ({ mesh: bLeaves, index: i * 3 + k }))], collider);
   });
 
   // --- Bushes: clusters of 2–4 blobs; many hug tree bases and road edges ------
