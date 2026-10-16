@@ -34,7 +34,7 @@ export const COMMANDS: readonly VoiceCommand[] = [
   { id: 'meteor', phrases: ['thiên thạch'], classId: 'mage', hotkey: 4, costMana: 80, cooldownMs: 45000, isUltimate: true },
   /** Self-cast: a bubble shield around the caster for 2s (no aiming). */
   { id: 'mage-shield', phrases: ['tạo khiên'], classId: 'mage', hotkey: 5, costMana: 20, cooldownMs: 4000, selfCast: true },
-  /** Sound bullet: a ring-wave projectile flying to the aim point. (\lo\ is not in the Vosk vocab, \lô\ is.) */
+  /** Sound bullet: a ring-wave projectile flying to the aim point. ("alo" is not in the Vosk vocab, "alô" is.) */
   { id: 'sound-blast', phrases: ['alô alô', 'a lô a lô'], classId: 'mage', hotkey: 6, costMana: 15, cooldownMs: 1500 },
   /** Guardian spirit (Susanoo-like): lifts the caster 3m for 5s; no casting, melee only. */
   { id: 'guardian-spirit', phrases: ['bảo hộ'], classId: 'mage', hotkey: 7, costMana: 60, cooldownMs: 20000, selfCast: true },

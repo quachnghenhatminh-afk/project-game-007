@@ -96,9 +96,9 @@ Quy tắc (chi tiết + bảng tình huống: `docs/GDD.md` mục 3.1):
 - Luật mana/thể lực là logic thuần trong `shared/src/playerState.ts` (có test giả lập tình huống); `client/src/game/spellCaster.ts` nối luật đó với giọng nói, tay, hiệu ứng, HUD.
 - Người chơi đọc tự do bất kỳ câu chú nào. Phụ đề 2 giây cho biết vừa đọc gì.
 - **Mọi kỹ năng đều có phím tắt dự phòng** (1–7, dùng khi đang giữ chuột phải). Có tùy chọn tắt hẳn giọng nói.
-- Khớp câu chú: chính xác trước, rồi **gần đúng ≥70%** theo âm tiết, đúng thứ tự, phải hơn hẳn câu đứng thứ 2 (uzzyMatchCommand trong shared/src/voiceMatch.ts).
-- Bản đồ: mỗi map trả về GameMap (client/src/render/gameMap.ts) — va chạm tròn/hộp, điểm xuất phát, vị trí pha lê, ngày/đêm. Hiện có citadel và n-base; chọn bằng ?map= hoặc nút ⚙.
-- Âm thanh: client/src/audio/sfx.ts tạo bằng WebAudio (chưa có file âm thanh).
+- Khớp câu chú: chính xác trước, rồi **gần đúng ≥70%** theo âm tiết, đúng thứ tự, phải hơn hẳn câu đứng thứ 2 (`fuzzyMatchCommand` trong `shared/src/voiceMatch.ts`).
+- Bản đồ: mỗi map trả về `GameMap` (`client/src/render/gameMap.ts`) — va chạm tròn/hộp, điểm xuất phát, vị trí pha lê, ngày/đêm. Hiện có `citadel` và `vn-base`; chọn bằng `?map=` hoặc nút ⚙.
+- Âm thanh: `client/src/audio/sfx.ts` tạo bằng WebAudio (chưa có file âm thanh).
 - Độ trễ đo trong voice-lab: "từ lúc ngừng nói → phép lên tay" (hoặc "từ lúc thả chuột → kết quả" nếu thả sớm).
 - Model Vosk tải **một lần ở lobby** với thanh tiến trình, cache bằng Cache Storage API.
 - Ghi log (dev mode) mỗi lần nhận diện: text, thời gian từ thả phím → kết quả. Dùng để đo độ trễ.
